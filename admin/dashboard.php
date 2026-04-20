@@ -221,7 +221,9 @@ document.addEventListener("click", function () {
             <td><?php echo $row['reservation_id']; ?></td>
             <td><?php echo $row['resource_name']; ?></td>
             <td><?php echo $row['requested_by']; ?></td>
-            <td><?php echo $row['status']; ?></td>
+            <td class="status <?php echo strtolower(trim($row['status'])); ?>">
+                <?php echo strtoupper($row['status']); ?>
+            </td>
             <td><?php echo $row['reserved_date']; ?></td>
         </tr>
         <?php } ?>
