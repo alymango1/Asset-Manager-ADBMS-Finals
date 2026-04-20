@@ -108,7 +108,7 @@ document.addEventListener("click", function () {
 
 
     <div class="table-wrap">
-
+        <h2>Transaction Logs</h2>
         <table class="transaction_table">
             <tr>
                 <th>ID</th>

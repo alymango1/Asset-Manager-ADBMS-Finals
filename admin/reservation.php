@@ -92,7 +92,7 @@ document.addEventListener("click", function () {
 
     <div class="table-wrap">
         <h2>Reservation List</h2>
-        <table class="table" width="100%">
+        <table class="transaction_table" width="100%">
             <tr>
                 <th>ID</th>
                 <th>Equipment</th>
@@ -111,13 +111,18 @@ document.addEventListener("click", function () {
                 <td><?php echo $row['status']; ?></td>
                 
 
-                <td>
-                    <a href="../admin/approve.php?id=<?php echo $row['reservation_id']; ?>" onclick="return confirm('Are you sure you want to delete this user?')">Approve</a> |
-                    <form method="POST" action="../admin/reject.php" style="display:inline;">
-                    <input type="hidden" name="id" value="<?php echo $row['reservation_id']; ?>">
-                    <input type="text" name="remarks" placeholder="Reason" required>
-                    <button type="submit">Reject</button>
-                </form>
+                <td class="actions">
+                    <a class="btn-approve"
+                    href="../admin/approve.php?id=<?php echo $row['reservation_id']; ?>"
+                    onclick="return confirm('Approve this reservation?')">
+                        Approve
+                    </a>
+
+                    <form method="POST" action="../admin/reject.php" class="reject-form">
+                        <input type="hidden" name="id" value="<?php echo $row['reservation_id']; ?>">
+                        <input type="text" name="remarks" placeholder="Reason..." required>
+                        <button type="submit" class="btn-reject">Reject</button>
+                    </form>
                 </td>
             </tr>
             <?php } ?>
@@ -125,6 +130,44 @@ document.addEventListener("click", function () {
         </table>
 
     </div>
+
+<br><br>
+
+    <div class="table-wrap intro-card reservation-guide">
+
+    <h2>Reservation Management Guide</h2>
+
+    <p class="intro-text">
+        This page allows administrators to review, approve, or reject equipment reservation requests.
+        Each request comes from faculty or staff who need to borrow equipment for academic or institutional use.
+    </p>
+
+    <div class="intro-grid">
+
+        <div class="intro-item info">
+            <h3>Pending Requests</h3>
+            <p>All requests shown here are waiting for your approval or rejection.</p>
+        </div>
+
+        <div class="intro-item success">
+            <h3>Approve Reservation</h3>
+            <p>Click <b>Approve</b> if the equipment is available and the request is valid.</p>
+        </div>
+
+        <div class="intro-item danger">
+            <h3>Reject Reservation</h3>
+            <p>Reject requests that are invalid or when equipment is unavailable. A reason is required.</p>
+        </div>
+
+        <div class="intro-item warning">
+            <h3>Important Note</h3>
+            <p>Approved requests will automatically be recorded in transaction logs for tracking.</p>
+        </div>
+
+    </div>
+
+</div>
+
 
 </div>
 

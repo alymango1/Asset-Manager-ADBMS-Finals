@@ -1,43 +1,43 @@
 <?php
 include('../database/db.php');
-
 session_start();
 
-$name = "User"; // fallback
+$name = "User";
 
 if (isset($_SESSION['full_name'])) {
     $fullName = $_SESSION['full_name'];
     $nameParts = explode(" ", trim($fullName));
-    $name = $nameParts[0]; // first name only
+    $name = $nameParts[0];
 }
 
-// COUNTS
-$totalUsers = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM users"))['total'];
-$totalAdmins = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM users WHERE roles='admin'"))['total'];
-$totalStaff  = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM users WHERE roles='staff'"))['total'];
+$message = "";
 
-$limit = 5;
-$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$offset = ($page - 1) * $limit;
+if (isset($_POST['submit'])) {
+    $fullName = trim($_POST['full_name']);  
+    $username = trim($_POST['username']);
+    $password = trim($_POST['password']); // ⚠️ stored as plain text
+    $role = $_POST['role'];
 
-// COUNT USERS
-$totalQuery = mysqli_query($conn, "SELECT COUNT(*) as total FROM users");
-$totalRow = mysqli_fetch_assoc($totalQuery);
-$totalRecords = $totalRow['total'];
-$totalPages = ceil($totalRecords / $limit);
+    if (empty($fullName) || empty($username) || empty($password) || empty($role)) {
+        $message = "All fields are required.";
+    } else {
 
-// FETCH USERS WITH LIMIT
-$usersQuery = mysqli_query($conn, "
-    SELECT * FROM users 
-    ORDER BY user_id ASC
-    LIMIT $limit OFFSET $offset
-");
+        $query = "INSERT INTO users (full_name, username, password, roles)
+          VALUES ('$fullName', '$username', '$password', '$role')";
+
+        if (mysqli_query($conn, $query)) {
+            $message = "User added successfully!";
+        } else {
+            $message = "Error: " . mysqli_error($conn);
+        }
+    }
+}
 ?>
 
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Users</title>
+    <title>Add User</title>
     <link rel="stylesheet" href="../css/style.css">
 </head>
 
@@ -59,7 +59,7 @@ $usersQuery = mysqli_query($conn, "
 </div>
 
 <div class="header">
-        <h1>Users</h1>
+        <h1>Dashboard</h1>
 
         <div class="header-right">
         <button class="profile_btn" id="profileBtn">
@@ -91,118 +91,58 @@ document.addEventListener("click", function () {
 });
 </script>
 
-<a href="add_user.php" class="fab" title="Add User">
-    <svg xmlns="http://www.w3.org/2000/svg" height="28px" viewBox="0 -960 960 960" width="28px" fill="#fff">
-        <path d="M440-440H200v-80h240v-240h80v240h240v80H520v240h-80v-240Z"/>
-    </svg>
-</a>
-
 <div class="main">
 
-
-
-    <br>
-
-        <div class="users-grid">
-
-            <div class="user-box users-total">
-                <h3>Total Users</h3>
-                <p><?php echo $totalUsers; ?></p>
-            </div>
-
-            <div class="user-box users-admin">
-                <h3>Admins</h3>
-                <p><?php echo $totalAdmins; ?></p>
-            </div>
-
-            <div class="user-box users-staff">
-                <h3>Staff</h3>
-                <p><?php echo $totalStaff; ?></p>
-            </div>
-
-        </div>
-
-    <br><br>
-
-
-    <!-- USERS TABLE -->
     <div class="table-wrap">
-    <div class="transaction-table">
-        <h2>Users List</h2>
 
-        <table class="table" width="100%" cellpadding="10" cellspacing="0">
-            <tr>
-                <th>ID</th>
-                <th>Full Name</th>
-                <th>Username</th>
-                <th>Role</th>
-                <th>Action</th>
-            </tr>
+        <h2>Create New User</h2>
+        <p class="subtitle">Add a new admin or staff account to the system</p>
 
-            <?php while($row = mysqli_fetch_assoc($usersQuery)) { ?>
-            <tr>
-            <td><?php echo $row['user_id']; ?></td>
-            <td><?php echo $row['full_name']; ?></td>
-            <td><?php echo $row['username']; ?></td>
-            <td><?php echo ucfirst($row['roles']); ?></td>
+        <?php if ($message != "") { ?>
+            <div class="message-box">
+                <?php echo $message; ?>
+            </div>
+        <?php } ?>
 
-            <td>
-                <a href="../config/delete_user.php?id=<?php echo $row['user_id']; ?>"
-                onclick="return confirm('Are you sure you want to delete this user?')"
-                style="color:white; background:#C40C0C; padding:6px 10px; border-radius:6px; text-decoration:none;">
-                Delete
+        <form method="POST" class="form-grid">
+
+            <div class="input-group">
+                <label>Full Name</label>
+                <input type="text" name="full_name" placeholder="Enter full name" required>
+            </div>
+
+            <div class="input-group">
+                <label>Username</label>
+                <input type="text" name="username" placeholder="Enter username" required>
+            </div>
+
+            <div class="input-group">
+                <label>Password</label>
+                <input type="text" name="password" placeholder="Enter password" required>
+            </div>
+
+            <div class="input-group">
+                <label>Role</label>
+                <select name="role" required>
+                    <option value="">Select Role</option>
+                    <option value="admin">Admin</option>
+                    <option value="staff">Staff</option>
+                </select>
+            </div>
+
+            <div class="button-row">
+                <button type="submit" name="submit" class="btn-primary">
+                    Create User
+                </button>
+
+                <a href="users.php" class="btn-secondary">
+                    Cancel
                 </a>
-    </td>
-</tr>
-            <?php } ?>
+            </div>
 
-        </table>
-
-        <div class="pagination">
-
-    <?php if ($page > 1): ?>
-        <a href="?page=<?php echo $page - 1; ?>">&laquo; Prev</a>
-    <?php endif; ?>
-
-    <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-        <a href="?page=<?php echo $i; ?>"
-           class="<?php echo ($i == $page) ? 'active' : ''; ?>">
-            <?php echo $i; ?>
-        </a>
-    <?php endfor; ?>
-
-    <?php if ($page < $totalPages): ?>
-        <a href="?page=<?php echo $page + 1; ?>">Next &raquo;</a>
-    <?php endif; ?>
-
-</div>
-    </div>
-    </div>
-    <br><br>
-
-    <div class="table-wrap">
-    <div class="users-intro">
-
-    <div class="intro-main">
-        <h2>User Management</h2>
-        <p>Manage system users, roles, and access permissions for the asset management system.</p>
-    </div>
-
-        <div class="intro-badges">
-
-        <div class="badge primary">
-            <p class="badge-title">Admin & Staff Control</p>
-            <p class="badge-desc">Manage who can access system features and administrative tools.</p>
-        </div>
-
-        <div class="badge secondary">
-            <p class="badge-title">Secure Role-Based Access</p>
-            <p class="badge-desc">Each account is assigned permissions based on its role level.</p>
-        </div>
+        </form>
 
     </div>
-    </div>
-</div>
 
 </div>
 

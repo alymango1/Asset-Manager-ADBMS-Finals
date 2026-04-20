@@ -7,6 +7,54 @@ body {
     background: #FFF7F1;
 }
 
+.status {
+    font-weight: 700;
+    font-size: 0.85em;
+    letter-spacing: 0.5px;
+}
+
+/* AVAILABLE */
+.status.available {
+    color: #2e7d32;
+}
+
+/* IN-USE */
+.status.in-use {
+    color: #bf740c;
+}
+
+/* UNDER MAINTENANCE */
+.status.under-maintenance {
+    color: #ef0010;
+}
+
+/* RESERVED */
+.status.reserved {
+    color: #8a6d00;
+}
+
+/* PENDING */
+.status.pending {
+    color: #b8860b; /* yellow-brown */
+}
+
+/* APPROVED */
+.status.approved {
+    color: #2e7d32; /* green */
+}
+
+/* REJECTED */
+.status.rejected {
+    color: #c62828; /* red */
+}
+
+.transaction_table.equipment td,
+.transaction_table.equipment th {
+    padding: 8px 10px;   /* smaller height */
+    font-size: 0.9em;
+    line-height: 1.2;
+}
+
 .transaction_table {
     width: 100%;
     border-collapse: collapse;
@@ -46,6 +94,72 @@ body {
 .status.pending {
     color: #d2a60a;
     font-weight: bold;
+}
+
+/* ACTION CELL LAYOUT */
+.transaction_table td.actions {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+/* APPROVE BUTTON */
+.btn-approve {
+    background: #2e7d32;
+    color: white;
+    padding: 7px 12px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 0.85em;
+    font-weight: 600;
+    transition: 0.2s ease;
+}
+
+.btn-approve:hover {
+    background: #1b5e20;
+    transform: translateY(-2px);
+}
+
+/* REJECT FORM */
+.reject-form {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+/* INPUT */
+.reject-form input {
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    font-size: 0.85em;
+    width: 120px;
+    outline: none;
+}
+
+.reject-form input:focus {
+    border-color: #c40c0c;
+    box-shadow: 0 0 0 2px rgba(196,12,12,0.15);
+}
+
+/* REJECT BUTTON */
+.btn-reject {
+    background: #c62828;
+    color: white;
+    border: none;
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-size: 0.85em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s ease;
+}
+
+.btn-reject:hover {
+    background: #8e0000;
+    transform: translateY(-2px);
 }
 
 .fab {
@@ -318,6 +432,9 @@ body {
     display: flex;
     flex-direction: column;
     
+
+    justify-content: flex-start;
+    
 }
 .card:hover {
     transform: translateY(-6px);
@@ -376,30 +493,23 @@ body {
     font-size: 1.2em;
     font-weight: bold;
     color: #5a1a1a;
+
+    align-self: flex-start; /* forces top-left */
 }
 
 /* number */
 .card p {
-    font-size: 2.5em;
-    font-weight: bold;
-    margin: 0;
-
-     flex: 1;
+    flex: 1;
 
     display: flex;
     justify-content: center;
     align-items: center;
 
-    font-size: 2.5em;
-    font-weight: bold;
     margin: 0;
 
-    justify-self: center;
-    align-self: center;
-
+    font-size: 2.5em;
+    font-weight: bold;
     color: #2c0b0b;
-
-    text-shadow: 0 2px 5px rgba(255,255,255,0.3);
 }
 
 
@@ -447,7 +557,7 @@ body {
 
 .table-wrap {
 
-    padding: 20px;
+    padding: 40px;
 
     background: rgba(255,255,255,1);
     backdrop-filter: blur(8px);
@@ -603,6 +713,10 @@ body {
 
     overflow: hidden;
     transition: transform 0.25s ease, box-shadow 0.25s ease;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
 }
 
 
@@ -661,15 +775,21 @@ body {
     font-size: 1.2em;
     font-weight: bold;
     color: #5a1a1a;
+    align-self: flex-start;
 }
 
 .user-box p {
-    font-size: 2.5em;
-    font-weight: bold;
+    flex: 1;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
     margin: 0;
 
-     justify-self: center;
-    align-self: center;
+    font-size: 2.5em;
+    font-weight: bold;
+    color: #2c0b0b;
 
     color: #2c0b0b;
 
@@ -823,4 +943,226 @@ body {
     min-width: 220px;
     font-size: 1em;
     font-weight: bold;
+}
+
+.intro-card {
+    padding: 30px;
+}
+
+.intro-text {
+    margin-top: 10px;
+    color: #555;
+    line-height: 1.6;
+    max-width: 800px;
+}
+
+.intro-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.intro-item {
+    background: #fff7f7;
+    border: 1px solid #f0d0d0;
+    border-radius: 12px;
+    padding: 15px;
+    transition: 0.2s ease;
+}
+
+.intro-item:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 15px rgba(0,0,0,0.08);
+}
+
+.intro-item h3 {
+    margin: 0 0 5px 0;
+    color: #5a1a1a;
+    font-size: 1em;
+}
+
+.intro-item p {
+    margin: 0;
+    font-size: 0.9em;
+    color: #666;
+}
+
+.pagination {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.pagination a {
+    padding: 8px 12px;
+    text-decoration: none;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    color: #C40C0C;
+    font-weight: bold;
+    transition: 0.2s ease;
+}
+
+.pagination a:hover {
+    background: #C40C0C;
+    color: white;
+}
+
+.pagination a.active {
+    background: #C40C0C;
+    color: white;
+    border-color: #C40C0C;
+}
+
+.btn-edit {
+    background: #1976d2;
+    color: white;
+    padding: 6px 10px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 0.85em;
+    margin-right: 5px;
+}
+
+.btn-edit:hover {
+    background: #0d47a1;
+}
+
+.btn-delete {
+    background: #c62828;
+    color: white;
+    padding: 6px 10px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 0.85em;
+}
+
+.btn-delete:hover {
+    background: #8e0000;
+}
+
+.reservation-guide .intro-item {
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    color: #2c2c2c; /* dark text for readability */
+    border: 1px solid #e5e5e5;
+}
+
+/* Soft background tones */
+.reservation-guide .info {
+    background: #eef5ff; /* soft blue */
+}
+
+.reservation-guide .success {
+    background: #eefaf2; /* soft green */
+}
+
+.reservation-guide .danger {
+    background: #fff0f0; /* soft red */
+}
+
+.reservation-guide .warning {
+    background: #fff8e6; /* soft yellow */
+}
+
+/* Title styling */
+.reservation-guide h2 {
+    margin-bottom: 10px;
+    color: #1f2937;
+}
+
+.intro-text {
+    margin-bottom: 15px;
+    color: #4b5563;
+    line-height: 1.6;
+}
+
+.form-card {
+    max-width: 500px;
+    margin: 40px auto;
+    background: #fff;
+    padding: 25px;
+    border-radius: 12px;
+    border: 1px solid #e5e5e5;
+}
+
+.form-card h2 {
+    margin-bottom: 5px;
+}
+
+.subtitle {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 20px;
+}
+
+.form-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.input-group label {
+    font-size: 14px;
+    margin-bottom: 5px;
+    display: block;
+    color: #333;
+}
+
+.input-group input,
+.input-group select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    outline: none;
+}
+
+.input-group input:focus,
+.input-group select:focus {
+    border-color: #4a90e2;
+}
+
+.button-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.btn-primary {
+    background: #d32f2f; /* red theme */
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    flex: 1;
+}
+
+.btn-primary:hover {
+    background: #b71c1c; /* darker red on hover */
+}
+
+.btn-secondary {
+    background: #e5e5e5;
+    color: #333;
+    padding: 10px 15px;
+    border-radius: 8px;
+    text-align: center;
+    text-decoration: none;
+    flex: 1;
+}
+
+.message-box {
+    background: #f1f5f9;
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    font-size: 14px;
+    color: #333;
 }

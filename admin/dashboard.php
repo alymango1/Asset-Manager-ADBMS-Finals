@@ -81,6 +81,7 @@ $activeItemsQuery = mysqli_query($conn, "
 <head>
     <title>Admin Dashboard</title>
     <link rel="stylesheet" href="../css/style.css">
+    <link rel="icon" href="../img/favicon-96.png" type="image/png">
 </head>
 
 <body>
@@ -206,7 +207,7 @@ document.addEventListener("click", function () {
 <div class="table-wrap">
     <h2>Reservations</h2>
 
-    <table class="table" border="1" width="100%" cellpadding="10" cellspacing="0">
+    <table class="transaction_table">
         <tr>
             <th>ID</th>
             <th>Equipment</th>

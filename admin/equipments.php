@@ -11,8 +11,20 @@ if (isset($_SESSION['full_name'])) {
     $name = $nameParts[0]; // first name only
 }
 
-// Fetch all equipments
-$equipmentsQuery = mysqli_query($conn, "SELECT * FROM equipments ORDER BY equipment_id ASC");
+$limit = 10; // items per page
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$offset = ($page - 1) * $limit;
+
+$totalQuery = mysqli_query($conn, "SELECT COUNT(*) as total FROM equipments");
+$totalRow = mysqli_fetch_assoc($totalQuery);
+$totalRecords = $totalRow['total'];
+$totalPages = ceil($totalRecords / $limit);
+
+$equipmentsQuery = mysqli_query($conn, "
+    SELECT * FROM equipments 
+    ORDER BY equipment_id ASC 
+    LIMIT $limit OFFSET $offset
+");
 ?>
 
 <!DOCTYPE html>
@@ -80,20 +92,18 @@ document.addEventListener("click", function () {
 
 <div class="main">
 
-
-
-    <br>
-
+<br>
     <div class="table-wrap">
 
         <h2>Equipment List</h2>
 
-        <table class="table" width="100%" cellpadding="10" cellspacing="0">
+        <table class="transaction_table equipment" width="100%" cellpadding="10" cellspacing="0">
             <tr>
                 <th>ID</th>
                 <th>Resource Name</th>
                 <th>Category</th>
                 <th>Status</th>
+                <th>Actions</th>
             </tr>
 
             <?php while($row = mysqli_fetch_assoc($equipmentsQuery)) { ?>
@@ -101,40 +111,89 @@ document.addEventListener("click", function () {
                 <td><?php echo $row['equipment_id']; ?></td>
                 <td><?php echo $row['resource_name']; ?></td>
                 <td><?php echo $row['categories']; ?></td>
-                <td><?php echo $row['status']; ?></td>
+
+                <td class="status <?php echo strtolower(str_replace(' ', '-', $row['status'])); ?>">
+                    <?php echo strtoupper($row['status']); ?>
+                </td>
+
+                <td class="actions">
+
+                    <!-- EDIT STATUS -->
+                    <a class="btn-edit"
+                    href="update_equipment_status.php?id=<?php echo $row['equipment_id']; ?>">
+                    Edit Status
+                    </a>
+
+                    <!-- DELETE -->
+                    <a class="btn-delete"
+                    href="delete_equipment.php?id=<?php echo $row['equipment_id']; ?>"
+                    onclick="return confirm('Are you sure you want to delete this equipment?');">
+                    Delete
+                    </a>
+
+                </td>
             </tr>
             <?php } ?>
 
         </table>
+
+        <div class="pagination">
+    <?php if ($page > 1): ?>
+        <a href="?page=<?php echo $page - 1; ?>">&laquo; Prev</a>
+    <?php endif; ?>
+
+    <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+        <a href="?page=<?php echo $i; ?>" 
+           class="<?php echo ($i == $page) ? 'active' : ''; ?>">
+            <?php echo $i; ?>
+        </a>
+    <?php endfor; ?>
+
+    <?php if ($page < $totalPages): ?>
+        <a href="?page=<?php echo $page + 1; ?>">Next &raquo;</a>
+    <?php endif; ?>
+</div>
 
        
     </div>
 
     <br><br>
 
-    <div class="table-wrap">
-    <h2>Quick Action</h2>
+            <div class="table-wrap intro-card">
+    <h2>Equipment Management Guide</h2>
 
-    <div class="action-grid">
+    <p class="intro-text">
+        This system allows administrators to manage and monitor all equipment records in real time.
+        You can track availability, handle reservations, and maintain proper inventory control across the organization.
+    </p>
 
-        <a href="add_equipment.php" class="action-tile primary">
-            <span class="icon">
-                <svg xmlns="http://www.w3.org/2000/svg" height="40px" viewBox="0 -960 960 960" width="40px" fill="#75FB4C">
-                    <path d="M446.67-120v-326.67H120v-66.66h326.67V-840h66.66v326.67H840v66.66H513.33V-120h-66.66Z"/>
-                </svg>
-            </span>
+    <div class="intro-grid">
 
-            <div>
-                <h3>Add Equipment</h3>
-                <p>Register new inventory item</p>
+        <div class="intro-item">
+            <h3>Inventory Tracking</h3>
+            <p>View all registered equipment including status and category.</p>
+        </div>
 
-                <p class="desc-highlight">
-                    Add a <span class="highlight-yellow">new equipment</span> to inventory system
-                </p>
-            </div>
-        </a>
+        <div class="intro-item">
+            <h3>Inventory Expansion</h3>
+            <p>Register new equipment to the database.</p>
+        </div>
+
+        <div class="intro-item">
+            <h3>Maintenance Control</h3>
+            <p>Flag items under maintenance to prevent scheduling conflicts.</p>
+        </div>
+
+        <div class="intro-item">
+            <h3>Role-Based Access</h3>
+            <p>Ensure only authorized users can modify equipment data.</p>
+        </div>
 
     </div>
+</div>
+
+
+
 </div>
 
 </body>
