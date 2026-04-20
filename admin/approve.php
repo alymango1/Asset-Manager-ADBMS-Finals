@@ -31,7 +31,7 @@ mysqli_query($conn, "
 
 // 4. Insert transaction log
 mysqli_query($conn, "
-    INSERT INTO equipment_transaction 
+    INSERT INTO equipment_transactions
     (equipment_id, performed_by, status_from, status_to, action_date, remarks)
     VALUES 
     ($equipment_id, $admin_id, 'Available', 'In-Use', CURDATE(), 'Approved reservation')
