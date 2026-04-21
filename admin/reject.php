@@ -15,6 +15,6 @@ mysqli_query($conn, "
     WHERE reservation_id = $reservation_id
 ");
 
-header("Location: ../admin/reservations.php");
+header("Location: ../admin/reservation.php");
 exit();
 ?>

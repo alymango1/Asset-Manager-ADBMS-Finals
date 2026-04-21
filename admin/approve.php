@@ -37,6 +37,6 @@ mysqli_query($conn, "
     ($equipment_id, $admin_id, 'Available', 'In-Use', CURDATE(), 'Approved reservation')
 ");
 
-header("Location: ../admin/reservations.php");
+header("Location: ../admin/reservation.php");
 exit();
 ?>

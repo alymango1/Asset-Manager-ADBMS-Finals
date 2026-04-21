@@ -27,6 +27,8 @@ SELECT
     ";
 
 $result = mysqli_query($conn, $query);
+
+
 ?>
 
 <!DOCTYPE html>
@@ -88,8 +90,6 @@ document.addEventListener("click", function () {
 
 <div class="main">
 
-
-
     <div class="table-wrap">
         <h2>Reservation List</h2>
         <table class="transaction_table" width="100%">
@@ -108,7 +108,9 @@ document.addEventListener("click", function () {
                 <td><?php echo $row['resource_name']; ?></td>
                 <td><?php echo $row['requester_name']; ?></td>
                 <td><?php echo $row['reserved_date']; ?></td>
-                <td><?php echo $row['status']; ?></td>
+                <td class="status <?php echo strtolower(str_replace(' ', '-', $row['status'])); ?>">
+                    <?php echo strtoupper($row['status']); ?>
+                </td>
                 
 
                 <td class="actions">
@@ -121,7 +123,7 @@ document.addEventListener("click", function () {
                     <form method="POST" action="../admin/reject.php" class="reject-form">
                         <input type="hidden" name="id" value="<?php echo $row['reservation_id']; ?>">
                         <input type="text" name="remarks" placeholder="Reason..." required>
-                        <button type="submit" class="btn-reject">Reject</button>
+                        <button type="submit" class="btn-reject" onclick="return confirm('Are you sure you want to reject this reservation request?');">Reject</button>
                     </form>
                 </td>
             </tr>

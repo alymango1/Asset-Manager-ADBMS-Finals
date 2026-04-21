@@ -1,35 +1,51 @@
 <?php
-include('../database/db.php');
+require_once __DIR__ . '/../database/db.php';
 session_start();
 
-$name = "User";
+// GET ID
+if (!isset($_GET['id'])) {
+    header("Location: equipments.php");
+    exit();
+}
 
-if (isset($_SESSION['full_name'])) {
-    $fullName = $_SESSION['full_name'];
-    $nameParts = explode(" ", trim($fullName));
-    $name = $nameParts[0];
+$id = (int) $_GET['id'];
+
+// FETCH EQUIPMENT
+$query = mysqli_query($conn, "SELECT * FROM equipments WHERE equipment_id = $id");
+$data = mysqli_fetch_assoc($query);
+
+if (!$data) {
+    header("Location: equipments.php");
+    exit();
 }
 
 $message = "";
 
-if (isset($_POST['submit'])) {
-    $fullName = trim($_POST['full_name']);  
-    $username = trim($_POST['username']);
-    $password = trim($_POST['password']); // ⚠️ stored as plain text
-    $role = $_POST['role'];
+// UPDATE STATUS
+if (isset($_POST['update'])) {
 
-    if (empty($fullName) || empty($username) || empty($password) || empty($role)) {
-        $message = "All fields are required.";
-    } else {
+    $status = mysqli_real_escape_string($conn, $_POST['status']);
 
-        $query = "INSERT INTO users (full_name, username, password, roles)
-          VALUES ('$fullName', '$username', '$password', '$role')";
+    $allowed = ['Available', 'In-Use', 'Under Maintenance'];
 
-        if (mysqli_query($conn, $query)) {
-            $message = "User added successfully!";
+    if (in_array($status, $allowed)) {
+
+        $update = mysqli_query($conn, "
+            UPDATE equipments 
+            SET status = '$status' 
+            WHERE equipment_id = $id
+        ");
+
+        if ($update) {
+            $_SESSION['success'] = "Status updated successfully!";
+            header("Location: equipments.php");
+            exit();
         } else {
             $message = "Error: " . mysqli_error($conn);
         }
+
+    } else {
+        $message = "Invalid status.";
     }
 }
 ?>
@@ -37,12 +53,11 @@ if (isset($_POST['submit'])) {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Add User</title>
+    <title>Update Equipment Status</title>
     <link rel="stylesheet" href="../css/style.css">
 </head>
 
 <body>
-
 <div class="sidebar">
     <div class="logo-container">
         <img src="../img/bsu.png" alt="Logo">
@@ -91,54 +106,52 @@ document.addEventListener("click", function () {
 });
 </script>
 
+
 <div class="main">
 
     <div class="table-wrap">
 
-        <h2>Create New User</h2>
-        <p class="subtitle">Add a new admin or staff account to the system</p>
+        <h2>Update Equipment Status</h2>
 
         <?php if ($message != "") { ?>
-            <div class="message-box">
-                <?php echo $message; ?>
-            </div>
+            <p style="color:red;"><?php echo $message; ?></p>
         <?php } ?>
 
         <form method="POST" class="form-grid">
 
             <div class="input-group">
-                <label>Full Name</label>
-                <input type="text" name="full_name" placeholder="Enter full name" required>
+            <label>Equipment</label>
+            <input type="text" value="<?php echo $data['resource_name']; ?>" disabled
+                style="width:100%; padding:10px; margin:10px 0;">
+            </div>    
+
+            <div class="input-group">
+            <label>Category</label>
+            <input type="text" value="<?php echo $data['categories']; ?>" disabled
+                style="width:100%; padding:10px; margin:10px 0;">
             </div>
 
             <div class="input-group">
-                <label>Username</label>
-                <input type="text" name="username" placeholder="Enter username" required>
-            </div>
+            <label>Status</label>
+            <select name="status"
+                style="width:100%; padding:10px; margin:10px 0;" required>
 
-            <div class="input-group">
-                <label>Password</label>
-                <input type="text" name="password" placeholder="Enter password" required>
-            </div>
+                <option value="Available" <?php if($data['status']=='Available') echo 'selected'; ?>>Available</option>
+                <option value="In-Use" <?php if($data['status']=='In-Use') echo 'selected'; ?>>In-Use</option>
+                <option value="Under Maintenance" <?php if($data['status']=='Under Maintenance') echo 'selected'; ?>>Under Maintenance</option>
 
-            <div class="input-group">
-                <label>Role</label>
-                <select name="role" required>
-                    <option value="">Select Role</option>
-                    <option value="admin">Admin</option>
-                    <option value="staff">Staff</option>
-                </select>
+            </select>
             </div>
 
             <div class="button-row">
-                <button type="submit" name="submit" class="btn-primary">
-                    Create User
-                </button>
+            <button type="submit" name="update" class="btn-primary">
+                Update Status
+            </button>
 
-                <a href="users.php" class="btn-secondary">
-                    Cancel
-                </a>
-            </div>
+            <a href="equipments.php" class="btn-secondary">
+                Cancel
+            </a>
+</button-row>
 
         </form>
 
