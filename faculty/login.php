@@ -17,12 +17,14 @@ if (isset($_POST['login'])) {
             $error = "Admin must log in through Admin Portal.";
         }
         else if ($user[ 'roles'] == 'faculty' || $user [ 'roles'] == 'staff') {
-            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['user_id'] = $user['user_id'];
             $_SESSION['username'] = $user['username'];
             $_SESSION['role'] = $user['roles'];
             
+            
             header('Location: index.php');
             exit();
+            
 
         } else {
             $error = "You do have not permission to access this area.";
@@ -61,7 +63,7 @@ if (isset($_POST['login'])) {
     
     <?php if(isset($error)) { echo '<p class="error">'.$error.'</p>'; } ?>
     
-    <form method="POST" action="">
+    <form method="POST">
         <input type="text" name="username" placeholder="Username" required>
         <input type="password" name="password" placeholder="Password" required>
         <button type="submit" name="login">Login</button>
