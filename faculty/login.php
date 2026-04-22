@@ -23,6 +23,7 @@ if (isset($_POST['login'])) {
             
             header('Location: dashboard.php');
             exit();
+            
 
         } else {
             $error = "You do have not permission to access this area.";
@@ -61,7 +62,7 @@ if (isset($_POST['login'])) {
     
     <?php if(isset($error)) { echo '<p class="error">'.$error.'</p>'; } ?>
     
-    <form method="POST" action="">
+    <form method="POST">
         <input type="text" name="username" placeholder="Username" required>
         <input type="password" name="password" placeholder="Password" required>
         <button type="submit" name="login">Login</button>

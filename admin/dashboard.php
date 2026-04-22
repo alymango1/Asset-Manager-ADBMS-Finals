@@ -127,6 +127,7 @@ $activeItemsQuery = mysqli_query($conn, "
 </div>
 
 <script>
+    
 const btn = document.getElementById("profileBtn");
 const menu = document.getElementById("dropdownMenu");
 
