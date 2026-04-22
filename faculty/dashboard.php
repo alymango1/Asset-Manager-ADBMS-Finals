@@ -1,49 +1,30 @@
 <?php
+session_start();
 include('../database/db.php');
 
-session_start();
-
-$name = "User"; // fallback
-
-if (isset($_SESSION['full_name'])) {
-    $fullName = $_SESSION['full_name'];
-    $nameParts = explode(" ", trim($fullName));
-    $name = $nameParts[0]; // first name only
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit();
 }
 
-// COUNTS
-$totalUsers = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM users"))['total'];
-$totalAdmins = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM users WHERE roles='admin'"))['total'];
-$totalStaff  = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM users WHERE roles='staff'"))['total'];
+$user_id = $_SESSION['user_id'];
+$username = $_SESSION['username'];
+$pending_q = mysqli_query($conn, "SELECT * FROM reservations WHERE requested_by = '$user_id' AND status = 'pending'");
+$pending_count = mysqli_num_rows($pending_q);
 
-$limit = 5;
-$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$offset = ($page - 1) * $limit;
+$approved_q = mysqli_query($conn, "SELECT * FROM reservations WHERE requested_by = '$user_id' AND status = 'approved'");
+$approved_count = mysqli_num_rows($approved_q);
 
-// COUNT USERS
-$totalQuery = mysqli_query($conn, "SELECT COUNT(*) as total FROM users");
-$totalRow = mysqli_fetch_assoc($totalQuery);
-$totalRecords = $totalRow['total'];
-$totalPages = ceil($totalRecords / $limit);
-
-// FETCH USERS WITH LIMIT
-$usersQuery = mysqli_query($conn, "
-    SELECT * FROM users 
-    ORDER BY user_id ASC
-    LIMIT $limit OFFSET $offset
-");
+$query = "SELECT * FROM reservations WHERE requested_by = '$user_id' ORDER BY created_at DESC";
+$result = mysqli_query($conn, $query);
 ?>
 
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Users</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Funnel+Sans:ital,wght@0,300..800;1,300..800&family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&family=Mona+Sans:ital,wght@0,200..900;1,200..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/style.css">
+    <title>Faculty Dashboard</title>
+    <link rel="stylesheet" href="../css/style_faculty.css">
 </head>
-
 <body>
 
 <div class="sidebar">
@@ -62,7 +43,7 @@ $usersQuery = mysqli_query($conn, "
 </div>
 
 <div class="header">
-        <h1>Users</h1>
+        <h1>Dashboard</h1>
 
         <div class="header-right">
         <button class="profile_btn" id="profileBtn">
@@ -93,115 +74,75 @@ document.addEventListener("click", function () {
     menu.classList.remove("active");
 });
 </script>
-
-<a href="add_user.php" class="fab" title="Add User">
-    <svg xmlns="http://www.w3.org/2000/svg" height="28px" viewBox="0 -960 960 960" width="28px" fill="#fff">
-        <path d="M440-440H200v-80h240v-240h80v240h240v80H520v240h-80v-240Z"/>
-    </svg>
-</a>
-
+ 
 <div class="main">
 
-        <div class="users-grid">
+    <h1>Welcome, <?php echo $username; ?>!</h1>
 
-            <div class="user-box users-total">
-                <h3>Total Users</h3>
-                <p><?php echo $totalUsers; ?></p>
-            </div>
+    <div class="cards">
+    <div class="card pending">
+        <h3>Pending Resevations:</h3>
+        <p><?php echo $pending_count; ?></p>
+    </div>
+    <div class="card approved">
+        <h3>Approved Reservations</h3>
+        <p><?php echo $approved_count; ?></p>
+    </div>
+</div>
 
-            <div class="user-box users-admin">
-                <h3>Admins</h3>
-                <p><?php echo $totalAdmins; ?></p>
-            </div>
+<br>
 
-            <div class="user-box users-staff">
-                <h3>Staff</h3>
-                <p><?php echo $totalStaff; ?></p>
-            </div>
-
-        </div>
-
-    <br><br>
-
-
-    <!-- USERS TABLE -->
     <div class="table-wrap">
-    <div class="transaction-table">
-        <h2>Users List</h2>
-
-        <table class="table" width="100%" cellpadding="10" cellspacing="0">
-            <tr>
-                <th>ID</th>
-                <th>Full Name</th>
-                <th>Username</th>
-                <th>Role</th>
-                <th>Action</th>
-            </tr>
-
-            <?php while($row = mysqli_fetch_assoc($usersQuery)) { ?>
-            <tr>
-            <td><?php echo $row['user_id']; ?></td>
-            <td><?php echo $row['full_name']; ?></td>
-            <td><?php echo $row['username']; ?></td>
-            <td><?php echo ucfirst($row['roles']); ?></td>
-
-            <td>
-                <a href="../config/delete_user.php?id=<?php echo $row['user_id']; ?>"
-                onclick="return confirm('Are you sure you want to delete this user?')"
-                style="color:white; background:#C40C0C; padding:6px 10px; border-radius:6px; text-decoration:none;">
-                Delete
-                </a>
-    </td>
-</tr>
-            <?php } ?>
-
-        </table>
-
-        <div class="pagination">
-
-    <?php if ($page > 1): ?>
-        <a href="?page=<?php echo $page - 1; ?>">&laquo; Prev</a>
-    <?php endif; ?>
-
-    <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-        <a href="?page=<?php echo $i; ?>"
-           class="<?php echo ($i == $page) ? 'active' : ''; ?>">
-            <?php echo $i; ?>
+        <h2>Quick Actions</h2>  
+    <div class="action-grid">
+    
+        <a class="action-tile primary" href="reservation.php">
+             <span class="icon"><svg xmlns="http://www.w3.org/2000/svg" height="40px" viewBox="0 -960 960 960" width="40px" fill="#75FB4C"><path d="M446.67-120v-326.67H120v-66.66h326.67V-840h66.66v326.67H840v66.66H513.33V-120h-66.66Z"/></svg></span>
+        <div>
+             <h3>Quick New Reservation</h3>
+            <p>Register new inventory item</p>
+        </div>
         </a>
-    <?php endfor; ?>
 
-    <?php if ($page < $totalPages): ?>
-        <a href="?page=<?php echo $page + 1; ?>">Next &raquo;</a>
-    <?php endif; ?>
-
-</div>
-    </div>
-    </div>
-    <br><br>
-
-    <div class="users-intro">
-
-    <div class="intro-main">
-        <h2>User Management</h2>
-        <p>Manage system users, roles, and access permissions for the asset management system.</p>
-    </div>
-
-        <div class="intro-badges">
-
-        <div class="badge primary">
-            <p class="badge-title">Admin & Staff Control</p>
-            <p class="badge-desc">Manage who can access system features and administrative tools.</p>
+        <a class="action-tile secondary" href="reservation.php">
+             <span class="icon"><svg xmlns="http://www.w3.org/2000/svg" height="40px" viewBox="0 -960 960 960" width="40px" fill="#75FB4C"><path d="M446.67-120v-326.67H120v-66.66h326.67V-840h66.66v326.67H840v66.66H513.33V-120h-66.66Z"/></svg></span>
+        <div>
+             <h3>View Equipments</h3>
+            <p>View equipments that are currently available</p>
         </div>
 
-        <div class="badge secondary">
-            <p class="badge-title">Secure Role-Based Access</p>
-            <p class="badge-desc">Each account is assigned permissions based on its role level.</p>
-        </div>
-
-    </div>
-    </div>
+        
+        </a>
+</div>
 </div>
 
+<br>
+    
+    <div class="table-wrap">
+    <h3>My Reservation History</h3>
+    <table class="transaction_table">
+        
+        <thead>
+            <tr>
+                <th>Equipment ID</th>
+                <th>Reserved Date</th>
+                <th>Status</th>
+                <th>Remarks</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php while($row = mysqli_fetch_assoc($result)): ?>
+            <tr>
+                <td><?php echo $row['equipment_id']; ?></td>
+                <td><?php echo $row['reserved_date']; ?></td>
+                <td><strong><?php echo ucfirst($row['status']); ?></strong></td>
+                <td><?php echo $row['remarks'] ?? 'None'; ?></td>
+            </tr>
+            <?php endwhile; ?>
+        </tbody>
+    </table>
 
+            </div>
+            </div>
 </body>
 </html>

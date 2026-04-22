@@ -13,10 +13,10 @@ if (isset($_POST['login'])) {
         $user = mysqli_fetch_assoc($result);
         
         if ($password == $user['password']) {
-        if ($user[ 'roles'] == 'admin') {
-            $error = "Admin must log in through Admin Portal.";
+        if ($user[ 'roles'] == 'staff') {
+            $error = "Faculty must log in through Admin Portal.";
         }
-        else if ($user[ 'roles'] == 'faculty' || $user [ 'roles'] == 'staff') {
+        else if ($user[ 'roles'] == 'faculty' || $user [ 'roles'] == 'admin') {
             $_SESSION['user_id'] = $user['user_id'];
             $_SESSION['username'] = $user['username'];
             $_SESSION['role'] = $user['roles'];
@@ -42,7 +42,7 @@ if (isset($_POST['login'])) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Faculty Login - Asset Manager</title>
+    <title>Admin Login - Asset Manager</title>
     <link rel="stylesheet" href="../css/style.css"> <style>
         /* Simple styling to match the red theme */
         body { font-family: Arial, sans-serif; background: #f4f4f4; display: flex; justify-content: center; align-items: center; height: 100vh; }
@@ -53,11 +53,14 @@ if (isset($_POST['login'])) {
         button:hover { background: #c9302c; }
         .error { color: red; text-align: center; font-size: 14px; }
     </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Funnel+Sans:ital,wght@0,300..800;1,300..800&family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&family=Mona+Sans:ital,wght@0,200..900;1,200..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
 </head>
 <body>
 
 <div class="login-box">
-    <h2>Faculty Login</h2>
+    <h2>Admin Login</h2>
     
     <?php if(isset($error)) { echo '<p class="error">'.$error.'</p>'; } ?>
     
