@@ -14,6 +14,7 @@ if (isset($_SESSION['full_name'])) {
 $query = "
 SELECT 
     r.reservation_id,
+    e.equipment_id,
     r.reserved_date,
     r.status,
     r.requested_by,
@@ -98,6 +99,7 @@ document.addEventListener("click", function () {
         <table class="transaction_table" width="100%">
             <tr>
                 <th>ID</th>
+                <th>Equipment ID</th>
                 <th>Equipment</th>
                 <th>Requested By</th>
                 <th>Date</th>
@@ -108,6 +110,7 @@ document.addEventListener("click", function () {
             <?php while($row = mysqli_fetch_assoc($result)) { ?>
             <tr>
                 <td><?php echo $row['reservation_id']; ?></td>
+                <td><?php echo $row['equipment_id']; ?></td>
                 <td><?php echo $row['resource_name']; ?></td>
                 <td><?php echo $row['requester_name']; ?></td>
                 <td><?php echo $row['reserved_date']; ?></td>
@@ -123,11 +126,9 @@ document.addEventListener("click", function () {
                         Approve
                     </a>
 
-                    <form method="POST" action="../admin/reject.php" class="reject-form">
-                        <input type="hidden" name="id" value="<?php echo $row['reservation_id']; ?>">
-                        <input type="text" name="remarks" placeholder="Reason..." required>
-                        <button type="submit" class="btn-reject" onclick="return confirm('Are you sure you want to reject this reservation request?');">Reject</button>
-                    </form>
+                    <button class="btn-reject" onclick="openRejectModal(<?php echo $row['reservation_id']; ?>)">
+                        Reject
+                    </button>
                 </td>
             </tr>
             <?php } ?>
@@ -175,6 +176,38 @@ document.addEventListener("click", function () {
 
 
 </div>
+
+<!-- Reject Modal -->
+<div class="modal-overlay" id="rejectModal">
+    <div class="modal-box">
+        <h3>Reject Reservation</h3>
+        <p>Please provide a reason for rejecting this reservation request.</p>
+        <form method="POST" action="../admin/reject.php" id="rejectForm">
+            <input type="hidden" name="id" id="rejectId">
+            <textarea name="remarks" id="rejectRemarks" placeholder="Enter reason here..." required></textarea>
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" onclick="closeRejectModal()">Cancel</button>
+                <button type="submit" class="btn-confirm-reject">Confirm Reject</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<script>
+function openRejectModal(id) {
+    document.getElementById('rejectId').value = id;
+    document.getElementById('rejectRemarks').value = '';
+    document.getElementById('rejectModal').classList.add('active');
+}
+function closeRejectModal() {
+    document.getElementById('rejectModal').classList.remove('active');
+}
+// Close modal when clicking the dark overlay
+document.getElementById('rejectModal').addEventListener('click', function(e) {
+    if (e.target === this) closeRejectModal();
+});
+</script>
 
 </body>
 </html>

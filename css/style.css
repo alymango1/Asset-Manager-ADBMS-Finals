@@ -8,6 +8,164 @@ body {
     font-family: "Open Sans";
 }
 
+.modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(3px);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+}
+.modal-overlay.active {
+    display: flex;
+}
+.modal-box {
+    background: #fff;
+    border-radius: 12px;
+    padding: 32px 28px 24px;
+    width: 420px;
+    max-width: 90vw;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    animation: modalIn 0.2s ease;
+}
+@keyframes modalIn {
+    from { transform: scale(0.92); opacity: 0; }
+    to   { transform: scale(1);    opacity: 1; }
+}
+.modal-box h3 {
+    margin: 0 0 6px;
+    font-size: 1.2rem;
+    color: #c0392b;
+}
+.modal-box p {
+    margin: 0 0 16px;
+    font-size: 0.9rem;
+    color: #555;
+}
+.modal-box textarea {
+    width: 100%;
+    height: 100px;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    resize: vertical;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+.modal-box textarea:focus {
+    outline: none;
+    border-color: #c0392b;
+}
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+    /* ── Info row ── */
+    .modal-info-row {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+    .modal-info-group { flex: 1; }
+    .modal-info-group label {
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #888;
+        margin-bottom: 4px;
+    }
+    .modal-info-group p {
+        margin: 0;
+        font-size: 0.95rem;
+        color: #222;
+        font-weight: 500;
+        background: #f5f5f5;
+        padding: 8px 12px;
+        border-radius: 6px;
+    }
+
+    /* ── Status chips ── */
+    .modal-status-group { margin-bottom: 6px; }
+    .modal-status-group > label {
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #888;
+        margin-bottom: 10px;
+    }
+    .status-options {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .status-chip {
+        padding: 8px 18px;
+        border-radius: 20px;
+        border: 2px solid transparent;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s;
+        background: #f0f0f0;
+        color: #555;
+    }
+    .status-chip:hover { filter: brightness(0.95); }
+
+    /* Selected state per type */
+    .status-chip.available.selected  { background: #d4edda; border-color: #28a745; color: #155724; }
+    .status-chip.in-use.selected     { background: #fff3cd; border-color: #ffc107; color: #856404; }
+    .status-chip.maintenance.selected{ background: #f8d7da; border-color: #dc3545; color: #721c24; }
+
+    /* Unselected hover hints */
+    .status-chip.available:hover  { background: #e9f7ec; }
+    .status-chip.in-use:hover     { background: #fffbea; }
+    .status-chip.maintenance:hover{ background: #fdf0f1; }
+
+    .btn-confirm-edit {
+        padding: 8px 20px;
+        border: none;
+        border-radius: 6px;
+        background: #1a1a2e;
+        color: #fff;
+        cursor: pointer;
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+    .btn-confirm-edit:hover { background: #2d2d50; }
+    .btn-confirm-edit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.btn-cancel {
+    padding: 8px 18px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.btn-cancel:hover { background: #f5f5f5; }
+.btn-confirm-reject {
+    padding: 8px 18px;
+    border: none;
+    border-radius: 6px;
+    background: #c0392b;
+    color: #fff;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+.btn-confirm-reject:hover { background: #a93226; }
+
 .status {
     font-weight: 700;
     font-size: 0.85em;
@@ -1034,6 +1192,7 @@ body {
 
 .btn-edit {
     background: #1976d2;
+    border: none;
     color: white;
     padding: 6px 10px;
     border-radius: 6px;

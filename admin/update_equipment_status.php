@@ -2,7 +2,36 @@
 require_once __DIR__ . '/../database/db.php';
 session_start();
 
-// GET ID
+$isAjax = isset($_POST['update']) && !isset($_GET['id']);
+
+// ── AJAX / fetch POST ──────────────────────────────────────────
+if ($isAjax) {
+    header('Content-Type: application/json');
+
+    $id     = isset($_POST['id'])     ? (int) $_POST['id']                                : 0;
+    $status = isset($_POST['status']) ? mysqli_real_escape_string($conn, $_POST['status']) : '';
+    $allowed = ['Available', 'In-Use', 'Under Maintenance'];
+
+    if (!$id) {
+        echo json_encode(['success' => false, 'message' => 'Invalid equipment ID.']);
+        exit();
+    }
+    if (!in_array($status, $allowed)) {
+        echo json_encode(['success' => false, 'message' => 'Invalid status value.']);
+        exit();
+    }
+
+    $update = mysqli_query($conn, "UPDATE equipments SET status = '$status' WHERE equipment_id = $id");
+
+    if ($update) {
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['success' => false, 'message' => mysqli_error($conn)]);
+    }
+    exit();
+}
+
+// ── Legacy GET page flow (kept intact) ────────────────────────
 if (!isset($_GET['id'])) {
     header("Location: equipments.php");
     exit();
@@ -10,9 +39,8 @@ if (!isset($_GET['id'])) {
 
 $id = (int) $_GET['id'];
 
-// FETCH EQUIPMENT
 $query = mysqli_query($conn, "SELECT * FROM equipments WHERE equipment_id = $id");
-$data = mysqli_fetch_assoc($query);
+$data  = mysqli_fetch_assoc($query);
 
 if (!$data) {
     header("Location: equipments.php");
@@ -21,21 +49,12 @@ if (!$data) {
 
 $message = "";
 
-// UPDATE STATUS
 if (isset($_POST['update'])) {
-
-    $status = mysqli_real_escape_string($conn, $_POST['status']);
-
+    $status  = mysqli_real_escape_string($conn, $_POST['status']);
     $allowed = ['Available', 'In-Use', 'Under Maintenance'];
 
     if (in_array($status, $allowed)) {
-
-        $update = mysqli_query($conn, "
-            UPDATE equipments 
-            SET status = '$status' 
-            WHERE equipment_id = $id
-        ");
-
+        $update = mysqli_query($conn, "UPDATE equipments SET status = '$status' WHERE equipment_id = $id");
         if ($update) {
             $_SESSION['success'] = "Status updated successfully!";
             header("Location: equipments.php");
@@ -43,7 +62,6 @@ if (isset($_POST['update'])) {
         } else {
             $message = "Error: " . mysqli_error($conn);
         }
-
     } else {
         $message = "Invalid status.";
     }

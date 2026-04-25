@@ -7,18 +7,32 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
-    $limit = 10; // items per page
-    $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-    $offset = ($page - 1) * $limit;
-    $totalQuery = mysqli_query($conn, "SELECT COUNT(*) as total FROM equipments");
-    $totalRow = mysqli_fetch_assoc($totalQuery);
-    $totalRecords = $totalRow['total'];
-    $totalPages = ceil($totalRecords / $limit);
+$user_id = $_SESSION['user_id'];
+$equipment_id = $_GET['id'];
+$resource_query = mysqli_query($conn, "SELECT resource_name FROM equipments WHERE equipment_id = $equipment_id");
+$row = mysqli_fetch_assoc($resource_query);
+$resource_name = $row['resource_name'];
 
-
-    $equipments_query = mysqli_query($conn,"SELECT * FROM equipments WHERE status = 'Available'");
+if (isset($_POST['submit_res'])) {
     
+    $res_date = $_POST['res_date'];
 
+    $insert_query = "
+    INSERT INTO reservations(equipment_id, requested_by, status, reserved_date, created_at)
+    VALUES ($equipment_id, $user_id, 'pending', '$res_date', NOW())";
+
+    $equipments_query = mysqli_query($conn, $insert_query);
+
+
+
+    if ($equipments_query) {
+        echo "<script>alert('Reservation submitted successfully.'); window.location='dashboard.php';</script>";
+    } else {
+        echo "Error: " . mysqli_error($conn);
+    }
+}
+
+?>
 
 ?>
 
@@ -80,109 +94,21 @@ if (!isset($_SESSION['user_id'])) {
     });
     </script>
 
-    <a href="add_equipment.php" class="fab" title="Add Equipment">
-        <svg xmlns="http://www.w3.org/2000/svg" height="28px" viewBox="0 -960 960 960" width="28px" fill="#fff">
-            <path d="M440-440H200v-80h240v-240h80v240h240v80H520v240h-80v-240Z"/>
-        </svg>
-    </a>
-
     <div class="main">
 
-        <div class="table-wrap">
-
-            <h2>Create Reservation</h2>
-
-            <table class="transaction_table equipment" width="100%" cellpadding="10" cellspacing="0">
-                <tr>
-                    <th>ID</th>
-                    <th>Resource Name</th>
-                    <th>Category</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                </tr>
-
-                <?php while($row = mysqli_fetch_assoc($equipments_query)) { ?>
-                <tr>
-                    <td><?php echo $row['equipment_id']; ?></td>
-                    <td><?php echo $row['resource_name']; ?></td>
-                    <td><?php echo $row['categories']; ?></td>
-
-                    <td class="status <?php echo strtolower(str_replace(' ', '-', $row['status'])); ?>">
-                        <?php echo strtoupper($row['status']); ?>
-                    </td>
-
-                    <td class="actions">
-
-                
-                        <a class="btn-edit"
-                        href="reserve_item.php?id=<?php echo $row['equipment_id']; ?>">
-                        Reserve
-                        </a>
-
-                    </td>
-                </tr>
-                <?php } ?>
-
-            </table>
-
-            <div class="pagination">
-        <?php if ($page > 1): ?>
-            <a href="?page=<?php echo $page - 1; ?>">&laquo; Prev</a>
-        <?php endif; ?>
-
-        <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-            <a href="?page=<?php echo $i; ?>" 
-            class="<?php echo ($i == $page) ? 'active' : ''; ?>">
-                <?php echo $i; ?>
-            </a>
-        <?php endfor; ?>
-
-        <?php if ($page < $totalPages): ?>
-            <a href="?page=<?php echo $page + 1; ?>">Next &raquo;</a>
-        <?php endif; ?>
-    </div>
-
-        
-        </div>
-
-        <br><br>
-
-                <div class="table-wrap intro-card">
-        <h2>Equipment Management Guide</h2>
-
-        <p class="intro-text">
-            This system allows administrators to manage and monitor all equipment records in real time.
-            You can track availability, handle reservations, and maintain proper inventory control across the organization.
-        </p>
-
-        <div class="intro-grid">
-
-            <div class="intro-item">
-                <h3>Inventory Tracking</h3>
-                <p>View all registered equipment including status and category.</p>
-            </div>
-
-            <div class="intro-item">
-                <h3>Inventory Expansion</h3>
-                <p>Register new equipment to the database.</p>
-            </div>
-
-            <div class="intro-item">
-                <h3>Maintenance Control</h3>
-                <p>Flag items under maintenance to prevent scheduling conflicts.</p>
-            </div>
-
-            <div class="intro-item">
-                <h3>Role-Based Access</h3>
-                <p>Ensure only authorized users can modify equipment data.</p>
-            </div>
-
-        </div>
-    </div>
+    <div class="table-wrap">
+    <h3>Equipment Name: <?php echo $resource_name ?></h3>
+    <form method="POST">
+    <label>Date to be Used</label>
+    <input type="date" name="res_date" required></input>
 
 
+    <button type="submit" name="submit_res">Submit Reservation</button>
+</form>
+</div>
+</div>
 
-    </div>
 
-    </body>
-    </html>
+</body>
+</html>
+
