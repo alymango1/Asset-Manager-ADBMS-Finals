@@ -1,114 +1,21 @@
 <?php
+/**
+ * reserve_item.php
+ *
+ * This page is no longer used as a standalone UI.
+ * The reservation modal is now handled inline on reservation.php and equipments.php.
+ *
+ * If someone lands here directly (e.g. from a bookmark), redirect them gracefully.
+ */
 session_start();
-include('../database/db.php');
 
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     exit();
 }
 
-$user_id = $_SESSION['user_id'];
-$equipment_id = $_GET['id'];
-$resource_query = mysqli_query($conn, "SELECT resource_name FROM equipments WHERE equipment_id = $equipment_id");
-$row = mysqli_fetch_assoc($resource_query);
-$resource_name = $row['resource_name'];
-
-if (isset($_POST['submit_res'])) {
-    
-    $res_date = $_POST['res_date'];
-
-    $insert_query = "
-    INSERT INTO reservations(equipment_id, requested_by, status, reserved_date, created_at)
-    VALUES ($equipment_id, $user_id, 'pending', '$res_date', NOW())";
-
-    $equipments_query = mysqli_query($conn, $insert_query);
-
-
-
-    if ($equipments_query) {
-        echo "<script>alert('Reservation submitted successfully.'); window.location='dashboard.php';</script>";
-    } else {
-        echo "Error: " . mysqli_error($conn);
-    }
-}
-
-?>
-
-?>
-
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Equipments</title>
-        <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Funnel+Sans:ital,wght@0,300..800;1,300..800&family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&family=Mona+Sans:ital,wght@0,200..900;1,200..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
-        <link rel="stylesheet" href="../css/style.css">
-    </head>
-
-    <body>
-
-<div class="sidebar">
-    <div class="logo-container">
-        <img src="../img/bsu.png" alt="Logo">
-        <h2>Asset Manager</h2>
-    </div>
-    <hr>
-    <br>
-    <a href="../faculty/dashboard.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#FFFFFF"><path d="M520-600v-240h320v240H520ZM120-440v-400h320v400H120Zm400 320v-400h320v400H520Zm-400 0v-240h320v240H120Zm80-400h160v-240H200v240Zm400 320h160v-240H600v240Zm0-480h160v-80H600v80ZM200-200h160v-80H200v80Zm160-320Zm240-160Zm0 240ZM360-280Z"/></svg>Dashboard</a>
-    <a href="../faculty/equipments.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#FFFFFF"><path d="M756-120 537-339l84-84 219 219-84 84Zm-552 0-84-84 276-276-68-68-28 28-51-51v82l-28 28-121-121 28-28h82l-50-50 142-142q20-20 43-29t47-9q24 0 47 9t43 29l-92 92 50 50-28 28 68 68 90-90q-4-11-6.5-23t-2.5-24q0-59 40.5-99.5T701-841q15 0 28.5 3t27.5 9l-99 99 72 72 99-99q7 14 9.5 27.5T841-701q0 59-40.5 99.5T701-561q-12 0-24-2t-23-7L204-120Z"/></svg>Equipments</a>
-    <a href="../faculty/my_reservations.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#FFFFFF"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h168q13-36 43.5-58t68.5-22q38 0 68.5 22t43.5 58h168q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm80-80h280v-80H280v80Zm0-160h400v-80H280v80Zm0-160h400v-80H280v80Zm221.5-198.5Q510-807 510-820t-8.5-21.5Q493-850 480-850t-21.5 8.5Q450-833 450-820t8.5 21.5Q467-790 480-790t21.5-8.5ZM200-200v-560 560Z"/></svg>Reservations</a>
-    <a href="logout.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#FFFFFF"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z"/></svg>Logout</a>
-</div>
-
-    <div class="header">
-            <h1>Equipments</h1>
-
-            <div class="header-right">
-            <button class="profile_btn" id="profileBtn">
-                <svg xmlns="http://www.w3.org/2000/svg" height="34px" viewBox="0 -960 960 960" width="40px" fill="#FFFFFF"><path d="M226-262q59-42.33 121.33-65.5 62.34-23.17 132.67-23.17 70.33 0 133 23.17T734.67-262q41-49.67 59.83-103.67T813.33-480q0-141-96.16-237.17Q621-813.33 480-813.33t-237.17 96.16Q146.67-621 146.67-480q0 60.33 19.16 114.33Q185-311.67 226-262Zm155.83-224.5Q342-526.33 342-584.67q0-58.33 39.83-98.16 39.84-39.84 98.17-39.84t98.17 39.84Q618-643 618-584.67q0 58.34-39.83 98.17-39.84 39.83-98.17 39.83t-98.17-39.83ZM480-80q-82.33 0-155.33-31.5-73-31.5-127.34-85.83Q143-251.67 111.5-324.67T80-480q0-83 31.5-155.67 31.5-72.66 85.83-127Q251.67-817 324.67-848.5T480-880q83 0 155.67 31.5 72.66 31.5 127 85.83 54.33 54.34 85.83 127Q880-563 880-480q0 82.33-31.5 155.33-31.5 73-85.83 127.34-54.34 54.33-127 85.83Q563-80 480-80Zm105-82.5q50.67-15.83 97.67-52.17-47-33.66-98-51.5Q533.67-284 480-284t-104.67 17.83q-51 17.84-98 51.5 47 36.34 97.67 52.17 50.67 15.83 105 15.83t105-15.83Zm-53.67-370.83q20-20 20-51.34 0-31.33-20-51.33T480-656q-31.33 0-51.33 20t-20 51.33q0 31.34 20 51.34 20 20 51.33 20t51.33-20ZM480-584.67Zm0 369.34Z"/></svg>        
-            </button>
-            </div>
-
-            <!-- DROPDOWN -->
-            <div class="dropdown" id="dropdownMenu">
-                <p>Greetings, <?php echo $name ?>!</p>
-                <a href="logout.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#000000"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z"/></svg>Logout</a>
-            </div>
-
-        </div>
-    </div>
-
-    <script>
-    const btn = document.getElementById("profileBtn");
-    const menu = document.getElementById("dropdownMenu");
-
-    btn.addEventListener("click", function (e) {
-        e.stopPropagation();
-        menu.classList.toggle("active");
-    });
-
-    // close when clicking outside
-    document.addEventListener("click", function () {
-        menu.classList.remove("active");
-    });
-    </script>
-
-    <div class="main">
-
-    <div class="table-wrap">
-    <h3>Equipment Name: <?php echo $resource_name ?></h3>
-    <form method="POST">
-    <label>Date to be Used</label>
-    <input type="date" name="res_date" required></input>
-
-
-    <button type="submit" name="submit_res">Submit Reservation</button>
-</form>
-</div>
-</div>
-
-
-</body>
-</html>
-
+// If an equipment ID was passed, send them to the reservation page
+// so they can use the modal there
+$id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+header("Location: reservation.php" . ($id ? "?highlight=$id" : ""));
+exit();

@@ -20,6 +20,7 @@ if (isset($_POST['login'])) {
             $_SESSION['user_id'] = $user['user_id'];
             $_SESSION['username'] = $user['username'];
             $_SESSION['role'] = $user['roles'];
+            $_SESSION['full_name'] = $user['full_name'];
             
             header('Location: dashboard.php');
             exit();

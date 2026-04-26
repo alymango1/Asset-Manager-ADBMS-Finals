@@ -55,23 +55,12 @@ $filterString = count($queryParams) ? '&' . implode('&', $queryParams) : '';
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Funnel+Sans:ital,wght@0,300..800;1,300..800&family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&family=Mona+Sans:ital,wght@0,200..900;1,200..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/style_faculty.css">
 </head>
 
 <body>
 
-<div class="sidebar">
-    <div class="logo-container">
-        <img src="../img/bsu.png" alt="Logo">
-        <h2>Asset Manager</h2>
-    </div>
-    <hr>
-    <br>
-    <a href="../faculty/dashboard.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#FFFFFF"><path d="M520-600v-240h320v240H520ZM120-440v-400h320v400H120Zm400 320v-400h320v400H520Zm-400 0v-240h320v240H120Zm80-400h160v-240H200v240Zm400 320h160v-240H600v240Zm0-480h160v-80H600v80ZM200-200h160v-80H200v80Zm160-320Zm240-160Zm0 240ZM360-280Z"/></svg>Dashboard</a>
-    <a href="../faculty/equipments.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#FFFFFF"><path d="M756-120 537-339l84-84 219 219-84 84Zm-552 0-84-84 276-276-68-68-28 28-51-51v82l-28 28-121-121 28-28h82l-50-50 142-142q20-20 43-29t47-9q24 0 47 9t43 29l-92 92 50 50-28 28 68 68 90-90q-4-11-6.5-23t-2.5-24q0-59 40.5-99.5T701-841q15 0 28.5 3t27.5 9l-99 99 72 72 99-99q7 14 9.5 27.5T841-701q0 59-40.5 99.5T701-561q-12 0-24-2t-23-7L204-120Z"/></svg>Equipments</a>
-    <a href="../faculty/my_reservations.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#FFFFFF"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h168q13-36 43.5-58t68.5-22q38 0 68.5 22t43.5 58h168q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm80-80h280v-80H280v80Zm0-160h400v-80H280v80Zm0-160h400v-80H280v80Zm221.5-198.5Q510-807 510-820t-8.5-21.5Q493-850 480-850t-21.5 8.5Q450-833 450-820t8.5 21.5Q467-790 480-790t21.5-8.5ZM200-200v-560 560Z"/></svg>Reservations</a>
-    <a href="logout.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#FFFFFF"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z"/></svg>Logout</a>
-</div>
+<?php include('sidebar.php');?>
 
 <div class="header">
     <h1>Equipments</h1>
@@ -100,20 +89,16 @@ document.addEventListener("click", function() {
 });
 </script>
 
-<a href="add_equipment.php" class="fab" title="Add Equipment">
-    <svg xmlns="http://www.w3.org/2000/svg" height="28px" viewBox="0 -960 960 960" width="28px" fill="#fff">
-        <path d="M440-440H200v-80h240v-240h80v240h240v80H520v240h-80v-240Z"/>
-    </svg>
-</a>
+<!-- FAB removed: add_equipment is an admin-only feature -->
 
 <div class="main">
 
     <div class="table-wrap">
 
-        <div class="table-header-row">
-            <h2>Equipment List</h2>
+        <h2>Equipment List</h2>
 
-            <!-- ── Search & Filter Bar ── -->
+        <!-- ── Search & Filter Bar (always below the title) ── -->
+        <div class="search-filter-bar-wrap">
             <form method="GET" action="equipments.php" class="search-filter-bar">
                 <div class="search-input-wrap">
                     <svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="#999"><path d="M784-120 532-372q-30 24-69 38t-83 14q-109 0-184.5-75.5T120-580q0-109 75.5-184.5T380-840q109 0 184.5 75.5T640-580q0 44-14 83t-38 69l252 252-56 56ZM380-400q75 0 127.5-52.5T560-580q0-75-52.5-127.5T380-760q-75 0-127.5 52.5T200-580q0 75 52.5 127.5T380-400Z"/></svg>
@@ -139,17 +124,16 @@ document.addEventListener("click", function() {
                     <a href="equipments.php" class="btn-clear-filter">&#x2715; Clear</a>
                 <?php endif; ?>
             </form>
-        </div>
 
-        <!-- Result count -->
-        <p class="result-count">
-            <?php if ($search !== '' || $category !== ''): ?>
-                Showing <strong><?php echo $totalRecords; ?></strong> result<?php echo $totalRecords != 1 ? 's' : ''; ?>
-                <?php if ($search !== ''): ?> for <strong>"<?php echo htmlspecialchars($search); ?>"</strong><?php endif; ?>
-            <?php else: ?>
-                Showing <strong><?php echo $totalRecords; ?></strong> equipment<?php echo $totalRecords != 1 ? 's' : ''; ?> total
-            <?php endif; ?>
-        </p>
+            <p class="result-count">
+                <?php if ($search !== '' || $category !== ''): ?>
+                    Showing <strong><?php echo $totalRecords; ?></strong> result<?php echo $totalRecords != 1 ? 's' : ''; ?>
+                    <?php if ($search !== ''): ?> for <strong>"<?php echo htmlspecialchars($search); ?>"</strong><?php endif; ?>
+                <?php else: ?>
+                    Showing <strong><?php echo $totalRecords; ?></strong> available equipment<?php echo $totalRecords != 1 ? 's' : ''; ?> total
+                <?php endif; ?>
+            </p>
+        </div>
 
         <table class="transaction_table equipment" width="100%" cellpadding="10" cellspacing="0">
             <tr>
@@ -178,10 +162,11 @@ document.addEventListener("click", function() {
                 <td class="actions">
 
                 
-                        <a class="btn-edit"
-                        href="reserve_item.php?id=<?php echo $row['equipment_id']; ?>">
-                        Reserve
-                        </a>
+                        <button class="btn-reserve"
+                            onclick="openReserveModal(<?php echo $row['equipment_id'];?>, '<?php echo htmlspecialchars(addslashes($row['resource_name']));?>', '<?php echo htmlspecialchars(addslashes($row['categories']));?>')">
+                            <svg xmlns="http://www.w3.org/2000/svg" height="15px" viewBox="0 -960 960 960" width="15px" fill="currentColor"><path d="M580-240q-42 0-71-29t-29-71q0-42 29-71t71-29q42 0 71 29t29 71q0 42-29 71t-71 29ZM200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Zm0 0v-80 80Z"/></svg>
+                            Reserve
+                        </button>
 
                     </td>
             </tr>
@@ -275,21 +260,33 @@ document.addEventListener("click", function() {
 
 <style>
 /* ── Search & Filter Bar ── */
-.table-header-row {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-bottom: 8px;
+
+/* Title sits on its own line */
+.table-wrap h2 {
+    margin: 0 0 14px 0;
 }
-.table-header-row h2 { margin: 0; line-height: 1.8; }
+
+/* Wrapper always stays below the title — never shifts */
+.search-filter-bar-wrap {
+    margin-bottom: 16px;
+    padding: 14px 16px;
+    background: #fafafa;
+    border: 1px solid #ebebeb;
+    border-radius: 10px;
+}
 
 .search-filter-bar {
     display: flex;
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.result-count {
+    font-size: 0.85rem;
+    color: #777;
+    margin: 0;
 }
 
 .search-input-wrap {
@@ -355,12 +352,6 @@ document.addEventListener("click", function() {
     transition: background 0.15s;
 }
 .btn-clear-filter:hover { background: #e0e0e0; color: #222; }
-
-.result-count {
-    font-size: 0.85rem;
-    color: #777;
-    margin: 0 0 12px;
-}
 
 /* ── Edit Status Modal ── */
 .modal-overlay {
@@ -516,6 +507,164 @@ function submitEditStatus() {
             document.getElementById('editModalMsg').textContent = 'An error occurred.';
             btn.disabled = false;
             btn.textContent = 'Update Status';
+        });
+}
+</script>
+
+<!-- ═══════════════════════════════════════════
+     RESERVE MODAL
+════════════════════════════════════════════ -->
+<div class="modal-overlay" id="reserveModal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <div class="modal-header-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M580-240q-42 0-71-29t-29-71q0-42 29-71t71-29q42 0 71 29t29 71q0 42-29 71t-71 29ZM200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Zm0 0v-80 80Z"/></svg>
+            </div>
+            <div>
+                <h3 id="modalTitle">Reserve Item</h3>
+                <p id="modalSubtitle" class="modal-subtitle">Submit a reservation request</p>
+            </div>
+            <button class="modal-close-btn" onclick="closeReserveModal()" title="Close">
+                <svg xmlns="http://www.w3.org/2000/svg" height="22px" viewBox="0 -960 960 960" width="22px" fill="currentColor"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/></svg>
+            </button>
+        </div>
+        <div class="modal-info-row">
+            <div class="modal-info-group">
+                <label>Equipment</label>
+                <p id="reserveEquipmentName">—</p>
+            </div>
+            <div class="modal-info-group">
+                <label>Category</label>
+                <p id="reserveCategory">—</p>
+            </div>
+            <div class="modal-info-group">
+                <label>Status</label>
+                <p class="modal-status-badge">AVAILABLE</p>
+            </div>
+        </div>
+        <div class="modal-date-group">
+            <label for="reserveDate">
+                <svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="#C40C0C"><path d="M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Zm0 0v-80 80Zm280 240q-17 0-28.5-11.5T440-440q0-17 11.5-28.5T480-480q17 0 28.5 11.5T520-440q0 17-11.5 28.5T480-400Zm-160 0q-17 0-28.5-11.5T280-440q0-17 11.5-28.5T320-480q17 0 28.5 11.5T360-440q0 17-11.5 28.5T320-400Zm320 0q-17 0-28.5-11.5T600-440q0-17 11.5-28.5T640-480q17 0 28.5 11.5T680-440q0 17-11.5 28.5T640-400ZM480-240q-17 0-28.5-11.5T440-280q0-17 11.5-28.5T480-320q17 0 28.5 11.5T520-280q0 17-11.5 28.5T480-240Zm-160 0q-17 0-28.5-11.5T280-280q0-17 11.5-28.5T320-320q17 0 28.5 11.5T360-280q0 17-11.5 28.5T320-240Zm320 0q-17 0-28.5-11.5T600-280q0-17 11.5-28.5T640-320q17 0 28.5 11.5T680-280q0 17-11.5 28.5T640-240Z"/></svg>
+                Date to be Used
+            </label>
+            <input type="date" id="reserveDate" min="<?php echo date('Y-m-d');?>" required>
+            <p class="date-hint">Select the date you need this equipment. Requests are subject to admin approval.</p>
+        </div>
+        <p id="modalMsg" class="modal-msg"></p>
+        <div class="modal-actions">
+            <button type="button" class="modal-btn-cancel" onclick="closeReserveModal()">Cancel</button>
+            <button type="button" class="modal-btn-submit" id="submitReserveBtn" onclick="submitReservation()">
+                <svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg>
+                Submit Request
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="successToast">
+    <svg xmlns="http://www.w3.org/2000/svg" height="22px" viewBox="0 -960 960 960" width="22px" fill="currentColor"><path d="m424-296 282-282-56-56-226 226-114-114-56 56 170 170Zm56 216q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/></svg>
+    Reservation submitted! Awaiting admin approval.
+</div>
+
+<style>
+.btn-reserve {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #C40C0C;
+    color: white;
+    padding: 7px 14px;
+    border-radius: 8px;
+    border: none;
+    font-size: 0.85em;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.2s, transform 0.15s;
+}
+.btn-reserve:hover { background:#8e0000; transform:translateY(-1px); }
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); z-index:9999; align-items:center; justify-content:center; }
+.modal-overlay.active { display:flex; }
+.modal-box { background:#fff; border-radius:16px; width:500px; max-width:94vw; box-shadow:0 24px 70px rgba(0,0,0,0.28); animation:modalIn 0.22s cubic-bezier(.34,1.56,.64,1); overflow:hidden; }
+@keyframes modalIn { from{transform:scale(0.88) translateY(20px);opacity:0} to{transform:scale(1) translateY(0);opacity:1} }
+.modal-header { display:flex; align-items:center; gap:14px; padding:20px 22px 16px; border-bottom:1px solid #f0e0e0; background:linear-gradient(135deg,#fff5f5,#fff); }
+.modal-header-icon { width:44px; height:44px; border-radius:12px; background:#C40C0C; color:#fff; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.modal-header h3 { margin:0; font-size:1.1rem; color:#2c0b0b; }
+.modal-subtitle { margin:2px 0 0; font-size:0.82rem; color:#999; }
+.modal-close-btn { margin-left:auto; background:none; border:none; cursor:pointer; color:#aaa; padding:6px; border-radius:8px; display:flex; align-items:center; transition:background 0.15s,color 0.15s; }
+.modal-close-btn:hover { background:#fee; color:#C40C0C; }
+.modal-info-row { display:flex; gap:12px; padding:18px 22px 0; }
+.modal-info-group { flex:1; }
+.modal-info-group label { display:block; font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#aaa; margin-bottom:5px; }
+.modal-info-group p { margin:0; font-size:0.92rem; color:#222; font-weight:600; background:#f7f7f7; padding:9px 12px; border-radius:8px; border:1px solid #eee; }
+.modal-status-badge { background:#e8f5e9 !important; color:#2e7d32 !important; border:1px solid #a5d6a7 !important; }
+.modal-date-group { padding:18px 22px 0; }
+.modal-date-group > label { display:flex; align-items:center; gap:6px; font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#aaa; margin-bottom:8px; }
+.modal-date-group input[type="date"] { width:100%; padding:11px 14px; border:1.5px solid #ddd; border-radius:10px; font-size:1rem; font-family:inherit; color:#222; background:#fff; box-sizing:border-box; transition:border-color 0.15s,box-shadow 0.15s; cursor:pointer; }
+.modal-date-group input[type="date"]:focus { outline:none; border-color:#C40C0C; box-shadow:0 0 0 3px rgba(196,12,12,0.12); }
+.date-hint { margin:7px 0 0; font-size:0.78rem; color:#aaa; }
+.modal-msg { min-height:1.2em; font-size:0.83rem; color:#C40C0C; padding:6px 22px 0; margin:0; }
+.modal-actions { display:flex; justify-content:flex-end; gap:10px; padding:16px 22px 22px; margin-top:6px; }
+.modal-btn-cancel { padding:10px 20px; border:1.5px solid #ddd; border-radius:10px; background:#fff; cursor:pointer; font-size:0.9rem; font-family:inherit; color:#555; transition:background 0.15s,border-color 0.15s; }
+.modal-btn-cancel:hover { background:#f5f5f5; border-color:#ccc; }
+.modal-btn-submit { display:inline-flex; align-items:center; gap:7px; padding:10px 22px; border:none; border-radius:10px; background:#C40C0C; color:#fff; cursor:pointer; font-size:0.9rem; font-weight:700; font-family:inherit; transition:background 0.15s,transform 0.1s; }
+.modal-btn-submit:hover { background:#8e0000; transform:translateY(-1px); }
+.modal-btn-submit:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
+.toast { position:fixed; bottom:30px; right:30px; background:#1b5e20; color:#fff; padding:14px 20px; border-radius:12px; display:flex; align-items:center; gap:10px; font-size:0.9rem; font-weight:600; box-shadow:0 8px 30px rgba(0,0,0,0.25); z-index:99999; opacity:0; transform:translateY(20px); pointer-events:none; transition:opacity 0.3s ease,transform 0.3s ease; }
+.toast.show { opacity:1; transform:translateY(0); }
+</style>
+
+<script>
+let _reserveId = null;
+function openReserveModal(id, name, category) {
+    _reserveId = id;
+    document.getElementById('reserveEquipmentName').textContent = name;
+    document.getElementById('reserveCategory').textContent = category;
+    document.getElementById('modalTitle').textContent = 'Reserve: ' + name;
+    document.getElementById('reserveDate').value = '';
+    document.getElementById('modalMsg').textContent = '';
+    const btn = document.getElementById('submitReserveBtn');
+    btn.disabled = false;
+    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg> Submit Request';
+    document.getElementById('reserveModal').classList.add('active');
+}
+function closeReserveModal() {
+    document.getElementById('reserveModal').classList.remove('active');
+    _reserveId = null;
+}
+document.getElementById('reserveModal').addEventListener('click', function(e) {
+    if (e.target === this) closeReserveModal();
+});
+function submitReservation() {
+    const dateVal = document.getElementById('reserveDate').value;
+    const msgEl   = document.getElementById('modalMsg');
+    if (!dateVal) { msgEl.textContent = 'Please select a date.'; document.getElementById('reserveDate').focus(); return; }
+    const btn = document.getElementById('submitReserveBtn');
+    btn.disabled = true;
+    btn.innerHTML = 'Submitting…';
+    msgEl.textContent = '';
+    const form = new FormData();
+    form.append('equipment_id', _reserveId);
+    form.append('res_date', dateVal);
+    form.append('submit_res', '1');
+    fetch('reservation.php', { method:'POST', body:form })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                closeReserveModal();
+                const t = document.getElementById('successToast');
+                t.classList.add('show');
+                setTimeout(() => t.classList.remove('show'), 3500);
+            } else {
+                msgEl.textContent = data.message || 'Failed to submit.';
+                btn.disabled = false;
+                btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg> Submit Request';
+            }
+        })
+        .catch(() => {
+            msgEl.textContent = 'An error occurred. Please try again.';
+            btn.disabled = false;
+            btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg> Submit Request';
         });
 }
 </script>

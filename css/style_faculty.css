@@ -614,7 +614,7 @@ body {
 
 .table-wrap h2{
     margin: 0;
-    padding-bottom: 15px;
+    padding-bottom: 5px;
     color:#5a1a1a;
 
 }
@@ -662,6 +662,7 @@ body {
 
     box-shadow: 0 4px 10px rgba(0,0,0,0.5);
 }
+
 
 /* ICON */
 .action-tile .icon {
