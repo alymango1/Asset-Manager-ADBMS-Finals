@@ -13,13 +13,14 @@ if (isset($_POST['login'])) {
         $user = mysqli_fetch_assoc($result);
         
         if ($password == $user['password']) {
-        if ($user[ 'roles'] == 'staff') {
-            $error = "Faculty must log in through Admin Portal.";
+        if ($user['roles'] == 'staff') {
+            $error = "Staff must log in through the Faculty/Staff Portal.";
         }
-        else if ($user[ 'roles'] == 'faculty' || $user [ 'roles'] == 'admin') {
+        else if ($user['roles'] == 'admin') {
             $_SESSION['user_id'] = $user['user_id'];
             $_SESSION['username'] = $user['username'];
             $_SESSION['role'] = $user['roles'];
+            $_SESSION['full_name'] = $user['full_name'];
             
             header('Location: dashboard.php');
             exit();

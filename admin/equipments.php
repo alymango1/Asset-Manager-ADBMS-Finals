@@ -3,6 +3,11 @@ include('../database/db.php');
 
 session_start();
 
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
+    header("Location: login.php");
+    exit();
+}
+
 $name = "User"; // fallback
 
 if (isset($_SESSION['full_name'])) {
@@ -62,20 +67,7 @@ $filterString = count($queryParams) ? '&' . implode('&', $queryParams) : '';
 
 <body>
 
-<div class="sidebar">
-    <div class="logo-container">
-        <img src="../img/bsu.png" alt="Logo">
-        <h2>Asset Manager</h2>
-    </div>
-    <hr>
-    <br>
-    <a href="../admin/dashboard.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#FFFFFF"><path d="M520-600v-240h320v240H520ZM120-440v-400h320v400H120Zm400 320v-400h320v400H520Zm-400 0v-240h320v240H120Zm80-400h160v-240H200v240Zm400 320h160v-240H600v240Zm0-480h160v-80H600v80ZM200-200h160v-80H200v80Zm160-320Zm240-160Zm0 240ZM360-280Z"/></svg>Dashboard</a>
-    <a href="../admin/users.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#FFFFFF"><path d="M367-527q-47-47-47-113t47-113q47-47 113-47t113 47q47 47 47 113t-47 113q-47 47-113 47t-113-47ZM160-160v-112q0-34 17.5-62.5T224-378q62-31 126-46.5T480-440q66 0 130 15.5T736-378q29 15 46.5 43.5T800-272v112H160Zm80-80h480v-32q0-11-5.5-20T700-306q-54-27-109-40.5T480-360q-56 0-111 13.5T260-306q-9 5-14.5 14t-5.5 20v32Zm296.5-343.5Q560-607 560-640t-23.5-56.5Q513-720 480-720t-56.5 23.5Q400-673 400-640t23.5 56.5Q447-560 480-560t56.5-23.5ZM480-640Zm0 400Z"/></svg>Users</a>
-    <a href="../admin/equipments.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#FFFFFF"><path d="M756-120 537-339l84-84 219 219-84 84Zm-552 0-84-84 276-276-68-68-28 28-51-51v82l-28 28-121-121 28-28h82l-50-50 142-142q20-20 43-29t47-9q24 0 47 9t43 29l-92 92 50 50-28 28 68 68 90-90q-4-11-6.5-23t-2.5-24q0-59 40.5-99.5T701-841q15 0 28.5 3t27.5 9l-99 99 72 72 99-99q7 14 9.5 27.5T841-701q0 59-40.5 99.5T701-561q-12 0-24-2t-23-7L204-120Z"/></svg>Equipments</a>
-    <a href="../admin/reservation.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#FFFFFF"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h168q13-36 43.5-58t68.5-22q38 0 68.5 22t43.5 58h168q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm80-80h280v-80H280v80Zm0-160h400v-80H280v80Zm0-160h400v-80H280v80Zm221.5-198.5Q510-807 510-820t-8.5-21.5Q493-850 480-850t-21.5 8.5Q450-833 450-820t8.5 21.5Q467-790 480-790t21.5-8.5ZM200-200v-560 560Z"/></svg>Reservations</a>
-    <a href="../admin/transactions.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#FFFFFF"><path d="M400-400h160v-80H400v80Zm0-120h320v-80H400v80Zm0-120h320v-80H400v80Zm-80 400q-33 0-56.5-23.5T240-320v-480q0-33 23.5-56.5T320-880h480q33 0 56.5 23.5T880-800v480q0 33-23.5 56.5T800-240H320Zm0-80h480v-480H320v480ZM160-80q-33 0-56.5-23.5T80-160v-560h80v560h560v80H160Zm160-720v480-480Z"/></svg>Transactions</a>
-    <a href="logout.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#FFFFFF"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z"/></svg>Logout</a>
-</div>
+<?php include('sidebar.php');?>
 
 <div class="header">
     <h1>Equipments</h1>
@@ -114,10 +106,17 @@ document.addEventListener("click", function() {
 
     <div class="table-wrap">
 
-        <div class="table-header-row">
-            <h2>Equipment List</h2>
+        <h2>Equipment List</h2>
 
-            <!-- ── Search & Filter Bar ── -->
+        <?php if (isset($_SESSION['success'])): ?>
+            <div class="message-box success"><?php echo htmlspecialchars($_SESSION['success']); unset($_SESSION['success']); ?></div>
+        <?php endif; ?>
+        <?php if (isset($_SESSION['error'])): ?>
+            <div class="message-box error"><?php echo htmlspecialchars($_SESSION['error']); unset($_SESSION['error']); ?></div>
+        <?php endif; ?>
+
+        <!-- ── Search & Filter Bar (always below the title) ── -->
+        <div class="search-filter-bar-wrap">
             <form method="GET" action="equipments.php" class="search-filter-bar">
                 <div class="search-input-wrap">
                     <svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="#999"><path d="M784-120 532-372q-30 24-69 38t-83 14q-109 0-184.5-75.5T120-580q0-109 75.5-184.5T380-840q109 0 184.5 75.5T640-580q0 44-14 83t-38 69l252 252-56 56ZM380-400q75 0 127.5-52.5T560-580q0-75-52.5-127.5T380-760q-75 0-127.5 52.5T200-580q0 75 52.5 127.5T380-400Z"/></svg>
@@ -141,7 +140,6 @@ document.addEventListener("click", function() {
                     <option value="">All Statuses</option>
                     <option value="Available"         <?php if($status === 'Available')         echo 'selected'; ?>>Available</option>
                     <option value="In-Use"            <?php if($status === 'In-Use')            echo 'selected'; ?>>In-Use</option>
-                    <option value="Reserved"          <?php if($status === 'Reserved')          echo 'selected'; ?>>Reserved</option>
                     <option value="Under Maintenance" <?php if($status === 'Under Maintenance') echo 'selected'; ?>>Under Maintenance</option>
                 </select>
 
@@ -151,17 +149,16 @@ document.addEventListener("click", function() {
                     <a href="equipments.php" class="btn-clear-filter">&#x2715; Clear</a>
                 <?php endif; ?>
             </form>
-        </div>
 
-        <!-- Result count -->
-        <p class="result-count">
-            <?php if ($search !== '' || $category !== '' || $status !== ''): ?>
-                Showing <strong><?php echo $totalRecords; ?></strong> result<?php echo $totalRecords != 1 ? 's' : ''; ?>
-                <?php if ($search !== ''): ?> for <strong>"<?php echo htmlspecialchars($search); ?>"</strong><?php endif; ?>
-            <?php else: ?>
-                Showing <strong><?php echo $totalRecords; ?></strong> equipment<?php echo $totalRecords != 1 ? 's' : ''; ?> total
-            <?php endif; ?>
-        </p>
+            <p class="result-count">
+                <?php if ($search !== '' || $category !== '' || $status !== ''): ?>
+                    Showing <strong><?php echo $totalRecords; ?></strong> result<?php echo $totalRecords != 1 ? 's' : ''; ?>
+                    <?php if ($search !== ''): ?> for <strong>"<?php echo htmlspecialchars($search); ?>"</strong><?php endif; ?>
+                <?php else: ?>
+                    Showing <strong><?php echo $totalRecords; ?></strong> equipment<?php echo $totalRecords != 1 ? 's' : ''; ?> total
+                <?php endif; ?>
+            </p>
+        </div>
 
         <table class="transaction_table equipment" width="100%" cellpadding="10" cellspacing="0">
             <tr>
@@ -188,20 +185,32 @@ document.addEventListener("click", function() {
                     <?php echo strtoupper($row['status']); ?>
                 </td>
                 <td class="actions">
-                    <button class="btn-edit"
-                        onclick="openEditModal(
-                            <?php echo $row['equipment_id']; ?>,
-                            '<?php echo addslashes($row['resource_name']); ?>',
-                            '<?php echo addslashes($row['categories']); ?>',
-                            '<?php echo $row['status']; ?>'
-                        )">
-                        Edit Status
-                    </button>
-                    <a class="btn-delete"
-                        href="delete_equipment.php?id=<?php echo $row['equipment_id']; ?>"
-                        onclick="return confirm('Are you sure you want to delete this equipment?');">
-                        Delete
-                    </a>
+                    <div class="action-menu-wrap">
+                        <button class="action-kebab" onclick="toggleMenu(this)" title="Actions">
+                            <span></span><span></span><span></span>
+                        </button>
+                        <div class="action-dropdown">
+                            <a class="action-item" href="edit_equipment.php?id=<?php echo $row['equipment_id']; ?>">
+                                <svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M200-200h57l391-391-57-57-391 391v57Zm-80 80v-170l528-527q12-11 26.5-17t30.5-6q16 0 31 6t26 18l55 56q12 11 17.5 26t5.5 30q0 16-5.5 30.5T817-647L290-120H120Zm640-584-56-56 56 56Zm-141 85-28-29 57 57-29-28Z"/></svg>
+                                Edit Details
+                            </a>
+                            <a class="action-item" href="#" onclick="event.preventDefault(); closeAllMenus(); openEditModal(<?php echo $row['equipment_id']; ?>,'<?php echo addslashes($row['resource_name']); ?>','<?php echo addslashes($row['categories']); ?>','<?php echo htmlspecialchars($row['status'], ENT_QUOTES); ?>')">
+                                <svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M160-160v-80l80-80v160h-80Zm160 0v-240l80-80v320h-80Zm160 0v-320l80 81v239h-80Zm160 0v-239l80-80v319h-80Zm160 0v-400l80-80v480h-80ZM160-440l280-280 160 160 200-200 80 80-280 280-160-160-280 280-80 80Z"/></svg>
+                                Edit Status
+                            </a>
+                            <?php if ($row['status'] === 'In-Use'): ?>
+                            <a class="action-item action-return" href="#" onclick="event.preventDefault(); closeAllMenus(); openReturnModal(<?php echo $row['equipment_id']; ?>,'<?php echo addslashes(htmlspecialchars($row['resource_name'])); ?>')">
+                                <svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M440-160q-121-15-200.5-105.5T160-480q0-66 26-126t72-106l57 57q-38 34-56.5 79T240-480q0 88 56 151.5T440-257v97Zm80 0v-97q69-8 124.5-71T700-480q0-100-70-170t-170-70h-3l44 44-56 56-140-140 140-140 56 57-44 43h3q134 0 227 93t93 227q0 121-79.5 211.5T520-160Z"/></svg>
+                                Mark as Returned
+                            </a>
+                            <?php endif; ?>
+                            <div class="action-divider"></div>
+                            <a class="action-item action-delete" href="delete_equipment.php?id=<?php echo $row['equipment_id']; ?>" onclick="return confirm('Delete <?php echo addslashes(htmlspecialchars($row['resource_name'])); ?>? This cannot be undone.');">
+                                <svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360ZM280-720v520-520Z"/></svg>
+                                Delete
+                            </a>
+                        </div>
+                    </div>
                 </td>
             </tr>
             <?php endwhile; ?>
@@ -294,21 +303,33 @@ document.addEventListener("click", function() {
 
 <style>
 /* ── Search & Filter Bar ── */
-.table-header-row {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-bottom: 8px;
+
+/* Title on its own line */
+.table-wrap h2 {
+    margin: 0 0 14px 0;
 }
-.table-header-row h2 { margin: 0; line-height: 1.8; }
+
+/* Wrapper always stays below the title — never shifts */
+.search-filter-bar-wrap {
+    margin-bottom: 16px;
+    padding: 14px 16px;
+    background: #fafafa;
+    border: 1px solid #ebebeb;
+    border-radius: 10px;
+}
 
 .search-filter-bar {
     display: flex;
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.result-count {
+    font-size: 0.85rem;
+    color: #777;
+    margin: 0;
 }
 
 .search-input-wrap {
@@ -374,12 +395,6 @@ document.addEventListener("click", function() {
     transition: background 0.15s;
 }
 .btn-clear-filter:hover { background: #e0e0e0; color: #222; }
-
-.result-count {
-    font-size: 0.85rem;
-    color: #777;
-    margin: 0 0 12px;
-}
 
 /* ── Edit Status Modal ── */
 .modal-overlay {
@@ -539,5 +554,235 @@ function submitEditStatus() {
 }
 </script>
 
+
+<!-- ── Quick Return Modal (from Equipments page) ── -->
+<div class="modal-overlay" id="quickReturnModal">
+    <div class="modal-box">
+        <h3 style="color:#1a1a2e; display:flex; align-items:center; gap:8px;">
+            <svg xmlns="http://www.w3.org/2000/svg" height="22px" viewBox="0 -960 960 960" width="22px" fill="#16a34a">
+                <path d="M440-160q-121-15-200.5-105.5T160-480q0-66 26-126t72-106l57 57q-38 34-56.5 79T240-480q0 88 56 151.5T440-257v97Zm80 0v-97q69-8 124.5-71T700-480q0-100-70-170t-170-70h-3l44 44-56 56-140-140 140-140 56 57-44 43h3q134 0 227 93t93 227q0 121-79.5 211.5T520-160Z"/>
+            </svg>
+            Confirm Return
+        </h3>
+        <p style="font-size:0.875rem; color:#555; margin: 4px 0 12px;">
+            Mark this equipment as returned and set it back to <b>Available</b>:
+        </p>
+        <div id="qrEquipmentPill" style="display:inline-block; background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; border-radius:8px; padding:6px 14px; font-size:0.9rem; font-weight:600; margin-bottom:16px;">—</div>
+        <div>
+            <label style="display:block; font-size:0.82rem; font-weight:600; color:#555; margin-bottom:5px;">
+                Return Notes <span style="font-weight:400; color:#999;">(optional)</span>
+            </label>
+            <textarea id="qrRemarks"
+                placeholder="e.g. Returned in good condition…"
+                style="width:100%; border:1px solid #ddd; border-radius:8px; padding:9px 12px; font-size:0.875rem; font-family:inherit; resize:vertical; min-height:75px; box-sizing:border-box;"></textarea>
+        </div>
+        <p id="qrModalMsg" style="color:red; font-size:0.82rem; min-height:1.1em; margin-top:6px;"></p>
+        <div class="modal-actions">
+            <button type="button" class="btn-cancel" onclick="closeQuickReturnModal()">Cancel</button>
+            <button type="button" id="qrConfirmBtn"
+                style="padding:8px 22px; background:#16a34a; color:#fff; border:none; border-radius:8px; font-size:0.875rem; font-weight:600; cursor:pointer; font-family:inherit;"
+                onclick="submitQuickReturn()">
+                Confirm Return
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div id="equipToast" style="position:fixed; bottom:28px; right:28px; background:#1a1a2e; color:#fff; padding:14px 22px; border-radius:10px; font-size:0.88rem; font-weight:500; box-shadow:0 4px 20px rgba(0,0,0,0.22); opacity:0; transform:translateY(12px); transition:opacity 0.25s,transform 0.25s; pointer-events:none; z-index:99999; max-width:360px; border-left:4px solid #22c55e;"></div>
+
+<style>
+/* ── Kebab action menu ── */
+.action-menu-wrap {
+    position: relative;
+    display: inline-block;
+}
+.action-kebab {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3.5px;
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: 1px solid #e2e2e2;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+    padding: 0;
+}
+.action-kebab span {
+    display: block;
+    width: 4px;
+    height: 4px;
+    background: #555;
+    border-radius: 50%;
+    transition: background 0.15s;
+}
+.action-kebab:hover {
+    background: #f4f4f8;
+    border-color: #bbb;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+.action-kebab:hover span { background: #1a1a2e; }
+.action-kebab.open {
+    background: #1a1a2e;
+    border-color: #1a1a2e;
+}
+.action-kebab.open span { background: #fff; }
+
+.action-dropdown {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    background: #fff;
+    border: 1px solid #e8e8e8;
+    border-radius: 10px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
+    z-index: 1000;
+    min-width: 172px;
+    padding: 5px;
+    animation: dropIn 0.15s ease;
+}
+.action-dropdown.open { display: block; }
+
+@keyframes dropIn {
+    from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+
+.action-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 11px;
+    font-size: 0.845rem;
+    font-weight: 500;
+    color: #2d2d2d;
+    text-decoration: none;
+    border-radius: 7px;
+    transition: background 0.12s, color 0.12s;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.action-item svg { flex-shrink: 0; opacity: 0.7; }
+.action-item:hover { background: #f4f4f8; color: #1a1a2e; }
+.action-item:hover svg { opacity: 1; }
+
+.action-return { color: #15803d; }
+.action-return:hover { background: #f0fdf4; color: #166534; }
+.action-delete { color: #b91c1c; }
+.action-delete:hover { background: #fff1f1; color: #991b1b; }
+
+.action-divider {
+    height: 1px;
+    background: #f0f0f0;
+    margin: 4px 6px;
+}
+.transaction_table.equipment td.actions,
+.transaction_table.equipment th:last-child {
+    width: 52px;
+    text-align: center;
+}
+</style>
+
+<script>
+let _qrId   = null;
+let _qrName = null;
+
+function openReturnModal(equipmentId, equipmentName) {
+    _qrId   = equipmentId;
+    _qrName = equipmentName;
+    document.getElementById('qrEquipmentPill').textContent = equipmentName;
+    document.getElementById('qrRemarks').value             = '';
+    document.getElementById('qrModalMsg').textContent      = '';
+    const btn = document.getElementById('qrConfirmBtn');
+    btn.disabled    = false;
+    btn.textContent = 'Confirm Return';
+    document.getElementById('quickReturnModal').classList.add('active');
+}
+function closeQuickReturnModal() {
+    document.getElementById('quickReturnModal').classList.remove('active');
+    _qrId = null; _qrName = null;
+}
+document.getElementById('quickReturnModal').addEventListener('click', function(e) {
+    if (e.target === this) closeQuickReturnModal();
+});
+
+function submitQuickReturn() {
+    if (!_qrId) return;
+    const remarks = document.getElementById('qrRemarks').value.trim();
+    const btn     = document.getElementById('qrConfirmBtn');
+    const msgEl   = document.getElementById('qrModalMsg');
+    btn.disabled    = true;
+    btn.textContent = 'Processing…';
+    msgEl.textContent = '';
+
+    const fd = new FormData();
+    fd.append('equipment_id', _qrId);
+    fd.append('remarks', remarks);
+
+    fetch('return_equipment.php', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                closeQuickReturnModal();
+                const toast = document.getElementById('equipToast');
+                toast.textContent = data.message;
+                toast.style.opacity = '1';
+                toast.style.transform = 'translateY(0)';
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateY(12px)';
+                    setTimeout(() => location.reload(), 300);
+                }, 2200);
+            } else {
+                msgEl.textContent   = data.message || 'An error occurred.';
+                btn.disabled        = false;
+                btn.textContent     = 'Confirm Return';
+            }
+        })
+        .catch(() => {
+            msgEl.textContent   = 'Network error. Please try again.';
+            btn.disabled        = false;
+            btn.textContent     = 'Confirm Return';
+        });
+}
+</script>
+
+<script>
+// ── Kebab menu logic ──────────────────────────────────────────
+function toggleMenu(btn) {
+    const wrap = btn.closest('.action-menu-wrap');
+    const drop = wrap.querySelector('.action-dropdown');
+    const isOpen = drop.classList.contains('open');
+    closeAllMenus();
+    if (!isOpen) {
+        drop.classList.add('open');
+        btn.classList.add('open');
+        // Flip upward if near bottom of viewport
+        const rect = drop.getBoundingClientRect();
+        if (rect.bottom > window.innerHeight - 16) {
+            drop.style.top  = 'auto';
+            drop.style.bottom = 'calc(100% + 6px)';
+        } else {
+            drop.style.top  = '';
+            drop.style.bottom = '';
+        }
+    }
+}
+function closeAllMenus() {
+    document.querySelectorAll('.action-dropdown.open').forEach(d => d.classList.remove('open'));
+    document.querySelectorAll('.action-kebab.open').forEach(b => b.classList.remove('open'));
+}
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.action-menu-wrap')) closeAllMenus();
+});
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeAllMenus();
+});
+</script>
 </body>
 </html>

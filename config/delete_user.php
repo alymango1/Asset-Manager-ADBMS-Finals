@@ -1,28 +1,47 @@
 <?php
-include('../database/db.php');
+session_start();
+require_once '../database/db.php';
 
-if (isset($_GET['id'])) {
+// Auth guard — only admins
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
+    header("Location: ../admin/login.php");
+    exit();
+}
 
-    $id = $_GET['id'];
+$id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 
-    // OPTIONAL SAFETY: prevent deleting last admin
-    $checkAdmin = mysqli_query($conn, "SELECT roles FROM users WHERE user_id=$id");
-    $data = mysqli_fetch_assoc($checkAdmin);
-
-    if ($data && $data['roles'] == 'admin') {
-
-        $countAdmins = mysqli_fetch_assoc(
-            mysqli_query($conn, "SELECT COUNT(*) as total FROM users WHERE roles='admin'")
-        )['total'];
-
-        if ($countAdmins <= 1) {
-            echo "<script>alert('Cannot delete the last admin!'); window.location='users.php';</script>";
-            exit();
-        }
-    }
-
-    mysqli_query($conn, "DELETE FROM users WHERE user_id=$id");
-
+if (!$id) {
     header("Location: ../admin/users.php");
     exit();
 }
+
+// Prevent admin from deleting their own account
+if ($id === (int) $_SESSION['user_id']) {
+    $_SESSION['error'] = "You cannot delete your own account.";
+    header("Location: ../admin/users.php");
+    exit();
+}
+
+// Make sure the user exists
+$check = mysqli_fetch_assoc(mysqli_query($conn,
+    "SELECT user_id, full_name FROM users WHERE user_id = $id"
+));
+
+if (!$check) {
+    $_SESSION['error'] = "User not found.";
+    header("Location: ../admin/users.php");
+    exit();
+}
+
+// Delete the user
+$delete = mysqli_query($conn, "DELETE FROM users WHERE user_id = $id");
+
+if ($delete) {
+    $_SESSION['success'] = "\"" . htmlspecialchars($check['full_name']) . "\" has been deleted.";
+} else {
+    $_SESSION['error'] = "Failed to delete user: " . mysqli_error($conn);
+}
+
+header("Location: ../admin/users.php");
+exit();
+?>

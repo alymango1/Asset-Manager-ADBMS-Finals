@@ -1,7 +1,11 @@
 <?php
+session_start();
 include('../database/db.php');
 
-session_start();
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit();
+}
 
 $name = "User"; // fallback
 
@@ -11,38 +15,14 @@ if (isset($_SESSION['full_name'])) {
     $name = $nameParts[0]; // first name only
 }
 
-
-if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
-    exit();
-}
-
 $user_id = $_SESSION['user_id'];
 $my_reservations = "
 SELECT e.resource_name, r.reserved_date, r.status, r.reservation_id, r.created_at FROM reservations r
 LEFT JOIN equipments e ON r.equipment_id = e.equipment_id 
-WHERE requested_by = $user_id;
+WHERE requested_by = $user_id
+ORDER BY r.created_at DESC;
 " ;
 $result_reservations = mysqli_query($conn, $my_reservations);
-
-
-
-$query = "
-SELECT 
-    r.reservation_id,
-    r.reserved_date,
-    r.status,
-    r.requested_by,
-    e.resource_name,
-    u.username AS requester_name
-    FROM reservations r
-    JOIN equipments e ON r.equipment_id = e.equipment_id
-    LEFT JOIN users u ON r.requested_by = u.user_id
-    WHERE r.status = 'pending'
-    ORDER BY r.reserved_date ASC
-    ";
-
-$result = mysqli_query($conn, $query);
 
 
 ?>
@@ -59,18 +39,7 @@ $result = mysqli_query($conn, $query);
 
 <body>
 
-<div class="sidebar">
-    <div class="logo-container">
-        <img src="../img/bsu.png" alt="Logo">
-        <h2>Asset Manager</h2>
-    </div>
-    <hr>
-    <br>
-    <a href="../faculty/dashboard.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#FFFFFF"><path d="M520-600v-240h320v240H520ZM120-440v-400h320v400H120Zm400 320v-400h320v400H520Zm-400 0v-240h320v240H120Zm80-400h160v-240H200v240Zm400 320h160v-240H600v240Zm0-480h160v-80H600v80ZM200-200h160v-80H200v80Zm160-320Zm240-160Zm0 240ZM360-280Z"/></svg>Dashboard</a>
-    <a href="../faculty/equipments.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#FFFFFF"><path d="M756-120 537-339l84-84 219 219-84 84Zm-552 0-84-84 276-276-68-68-28 28-51-51v82l-28 28-121-121 28-28h82l-50-50 142-142q20-20 43-29t47-9q24 0 47 9t43 29l-92 92 50 50-28 28 68 68 90-90q-4-11-6.5-23t-2.5-24q0-59 40.5-99.5T701-841q15 0 28.5 3t27.5 9l-99 99 72 72 99-99q7 14 9.5 27.5T841-701q0 59-40.5 99.5T701-561q-12 0-24-2t-23-7L204-120Z"/></svg>Equipments</a>
-    <a href="../faculty/my_reservations.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#FFFFFF"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h168q13-36 43.5-58t68.5-22q38 0 68.5 22t43.5 58h168q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm80-80h280v-80H280v80Zm0-160h400v-80H280v80Zm0-160h400v-80H280v80Zm221.5-198.5Q510-807 510-820t-8.5-21.5Q493-850 480-850t-21.5 8.5Q450-833 450-820t8.5 21.5Q467-790 480-790t21.5-8.5ZM200-200v-560 560Z"/></svg>Reservations</a>
-    <a href="logout.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#FFFFFF"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z"/></svg>Logout</a>
-</div>
+<?php include('sidebar.php');?>
 
 <div class="header">
         <h1>Reservations</h1>
@@ -116,18 +85,29 @@ document.addEventListener("click", function () {
                 <th>Reservation Created On</th>
                 <th>Date to be Used</th>
                 <th>Status</th>
+                <th>Action</th>
             </tr>
 
             <?php while($row = mysqli_fetch_assoc($result_reservations)) { ?>
-            <tr>
+            <tr id="res-row-<?php echo $row['reservation_id']; ?>">
                 <td><?php echo $row['reservation_id']; ?></td>
-                <td><?php echo $row['resource_name']; ?></td>
+                <td><?php echo htmlspecialchars($row['resource_name']); ?></td>
                 <td><?php echo $row['created_at']; ?></td>
                 <td><?php echo $row['reserved_date']; ?></td>
                 <td class="status <?php echo strtolower(str_replace(' ', '-', $row['status'])); ?>">
                     <?php echo strtoupper($row['status']); ?>
                 </td>
-            
+                <td class="actions">
+                    <?php if ($row['status'] === 'pending'): ?>
+                        <button class="btn-cancel-res"
+                            onclick="openCancelModal(<?php echo $row['reservation_id']; ?>, '<?php echo htmlspecialchars(addslashes($row['resource_name'])); ?>')">
+                            <svg xmlns="http://www.w3.org/2000/svg" height="15px" viewBox="0 -960 960 960" width="15px" fill="currentColor"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/></svg>
+                            Cancel
+                        </button>
+                    <?php else: ?>
+                        <span class="no-action">—</span>
+                    <?php endif; ?>
+                </td>
             </tr>
             <?php } ?>
 
@@ -174,6 +154,261 @@ document.addEventListener("click", function () {
 
 
 </div>
+
+
+<!-- ── Cancel Confirmation Modal ── -->
+<div class="modal-overlay" id="cancelModal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <div class="modal-header-icon" style="background:#C40C0C;">
+                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M480-280q17 0 28.5-11.5T520-320q0-17-11.5-28.5T480-360q-17 0-28.5 11.5T440-320q0 17 11.5 28.5T480-280Zm-40-160h80v-240h-80v240Zm40 360q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z"/></svg>
+            </div>
+            <div>
+                <h3 id="cancelModalTitle">Cancel Reservation</h3>
+                <p class="modal-subtitle">This action cannot be undone.</p>
+            </div>
+            <button class="modal-close-btn" onclick="closeCancelModal()">
+                <svg xmlns="http://www.w3.org/2000/svg" height="22px" viewBox="0 -960 960 960" width="22px" fill="currentColor"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/></svg>
+            </button>
+        </div>
+
+        <div style="padding:18px 22px 0;">
+            <p style="margin:0; font-size:0.92rem; color:#555;">
+                Are you sure you want to cancel your reservation for:<br>
+                <strong id="cancelEquipmentName" style="color:#1a1a2e;">—</strong>?
+            </p>
+            <p style="margin:12px 0 0; font-size:0.82rem; color:#999;">
+                Only pending reservations can be cancelled. The equipment will become available for others to reserve.
+            </p>
+        </div>
+
+        <p id="cancelModalMsg" style="color:#C40C0C; font-size:0.83rem; padding:6px 22px 0; margin:0; min-height:1.2em;"></p>
+
+        <div class="modal-actions" style="padding:16px 22px 22px;">
+            <button type="button" class="modal-btn-cancel-action" onclick="closeCancelModal()">Keep Reservation</button>
+            <button type="button" id="confirmCancelBtn" class="modal-btn-confirm-cancel" onclick="submitCancel()">
+                <svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/></svg>
+                Yes, Cancel It
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ── Toast ── -->
+<div class="toast" id="cancelToast">
+    <svg xmlns="http://www.w3.org/2000/svg" height="22px" viewBox="0 -960 960 960" width="22px" fill="currentColor"><path d="m424-296 282-282-56-56-226 226-114-114-56 56 170 170Zm56 216q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z"/></svg>
+    Reservation cancelled successfully.
+</div>
+
+<style>
+/* ── Cancel button in table ── */
+.btn-cancel-res {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: #fff0f0;
+    color: #C40C0C;
+    border: 1.5px solid #f5c6c6;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.btn-cancel-res:hover {
+    background: #ffe0e0;
+    border-color: #C40C0C;
+    transform: translateY(-1px);
+}
+.no-action { color: #ccc; font-size: 0.85rem; }
+
+/* ── Modal shared styles ── */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+}
+.modal-overlay.active { display: flex; }
+.modal-box {
+    background: #fff;
+    border-radius: 16px;
+    width: 460px;
+    max-width: 94vw;
+    box-shadow: 0 24px 70px rgba(0,0,0,0.28);
+    animation: modalIn 0.22s cubic-bezier(.34,1.56,.64,1);
+    overflow: hidden;
+}
+@keyframes modalIn {
+    from { transform: scale(0.88) translateY(20px); opacity: 0; }
+    to   { transform: scale(1) translateY(0); opacity: 1; }
+}
+.modal-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 20px 22px 16px;
+    border-bottom: 1px solid #f0e0e0;
+    background: linear-gradient(135deg, #fff5f5, #fff);
+}
+.modal-header-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.modal-header h3 { margin: 0; font-size: 1.05rem; color: #2c0b0b; }
+.modal-subtitle  { margin: 2px 0 0; font-size: 0.82rem; color: #999; }
+.modal-close-btn {
+    margin-left: auto;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #aaa;
+    padding: 6px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    transition: background 0.15s, color 0.15s;
+}
+.modal-close-btn:hover { background: #fee; color: #C40C0C; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+.modal-btn-cancel-action {
+    padding: 10px 20px;
+    border: 1.5px solid #ddd;
+    border-radius: 10px;
+    background: #fff;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-family: inherit;
+    color: #555;
+    transition: background 0.15s;
+}
+.modal-btn-cancel-action:hover { background: #f5f5f5; }
+
+.modal-btn-confirm-cancel {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 10px;
+    background: #C40C0C;
+    color: #fff;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 700;
+    font-family: inherit;
+    transition: background 0.15s, transform 0.1s;
+}
+.modal-btn-confirm-cancel:hover    { background: #8e0000; transform: translateY(-1px); }
+.modal-btn-confirm-cancel:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+/* ── Toast ── */
+.toast {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    background: #1b5e20;
+    color: #fff;
+    padding: 14px 20px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+    z-index: 99999;
+    opacity: 0;
+    transform: translateY(20px);
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+</style>
+
+<script>
+let _cancelId   = null;
+let _cancelName = null;
+
+function openCancelModal(reservationId, equipmentName) {
+    _cancelId   = reservationId;
+    _cancelName = equipmentName;
+    document.getElementById('cancelEquipmentName').textContent = equipmentName;
+    document.getElementById('cancelModalMsg').textContent = '';
+    const btn = document.getElementById('confirmCancelBtn');
+    btn.disabled    = false;
+    btn.innerHTML   = '<svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/></svg> Yes, Cancel It';
+    document.getElementById('cancelModal').classList.add('active');
+}
+
+function closeCancelModal() {
+    document.getElementById('cancelModal').classList.remove('active');
+    _cancelId   = null;
+    _cancelName = null;
+}
+
+document.getElementById('cancelModal').addEventListener('click', function(e) {
+    if (e.target === this) closeCancelModal();
+});
+
+function submitCancel() {
+    if (!_cancelId) return;
+
+    const btn   = document.getElementById('confirmCancelBtn');
+    const msgEl = document.getElementById('cancelModalMsg');
+
+    btn.disabled  = true;
+    btn.innerHTML = 'Cancelling…';
+    msgEl.textContent = '';
+
+    const fd = new FormData();
+    fd.append('reservation_id', _cancelId);
+
+    fetch('cancel_reservation.php', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                closeCancelModal();
+
+                // Fade out and remove the row
+                const row = document.getElementById('res-row-' + data.reservation_id);
+                if (row) {
+                    row.style.transition = 'opacity 0.35s';
+                    row.style.opacity    = '0';
+                    setTimeout(() => row.remove(), 360);
+                }
+
+                // Show toast
+                const toast = document.getElementById('cancelToast');
+                toast.classList.add('show');
+                setTimeout(() => toast.classList.remove('show'), 3500);
+            } else {
+                msgEl.textContent = data.message || 'Could not cancel. Please try again.';
+                btn.disabled      = false;
+                btn.innerHTML     = '<svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/></svg> Yes, Cancel It';
+            }
+        })
+        .catch(() => {
+            msgEl.textContent = 'Network error. Please try again.';
+            btn.disabled      = false;
+            btn.innerHTML     = '<svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224-224-224 224Z"/></svg> Yes, Cancel It';
+        });
+}
+</script>
 
 </body>
 </html>
