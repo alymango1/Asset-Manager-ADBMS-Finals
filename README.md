@@ -1,4 +1,4 @@
-<img width="1897" height="1078" alt="image" src="https://github.com/user-attachments/assets/6a0ea2fe-3898-44ec-8f6c-9f72dec0019c" /># Asset Manager — Batangas State University
+
 
 > **ADBMS Finals Project** · JPLPC Malvar Campus
 
