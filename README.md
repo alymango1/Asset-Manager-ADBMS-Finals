@@ -253,8 +253,6 @@ Reservation statuses: `pending`, `approved`, `rejected`, `cancelled`, `returned`
 
 ><img width="1917" height="828" alt="image" src="https://github.com/user-attachments/assets/ca010972-828f-44f9-8d48-9dbbab14d6fe" />
 
-><img width="1919" height="829" alt="image" src="https://github.com/user-attachments/assets/7f4f08c5-91d6-4011-aeb4-3db2b282f99e" />
-
 ><img width="1915" height="827" alt="image" src="https://github.com/user-attachments/assets/852be60d-d42a-4bdd-b344-697659e72333" />
 
 
