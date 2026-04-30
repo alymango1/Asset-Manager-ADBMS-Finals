@@ -1,10 +1,15 @@
 <?php
-include('../database/db.php');
 session_start();
+include('../database/db.php');
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: login.php");
     exit();
+}
+
+// CSRF token
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 $name = "User";
@@ -18,22 +23,40 @@ if (isset($_SESSION['full_name'])) {
 $message = "";
 
 if (isset($_POST['submit'])) {
-    $fullName = trim($_POST['full_name']);  
-    $username = trim($_POST['username']);
-    $password = trim($_POST['password']); // ⚠️ stored as plain text
-    $role = $_POST['role'];
 
-    if (empty($fullName) || empty($username) || empty($password) || empty($role)) {
-        $message = "All fields are required.";
+    // CSRF check
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        $message = "Invalid request. Please try again.";
     } else {
+        $fullName    = trim($_POST['full_name']);
+        $username    = trim($_POST['username']);
+        $rawPassword = trim($_POST['password']);
+        $role        = $_POST['role'];
 
-        $query = "INSERT INTO users (full_name, username, password, roles)
-          VALUES ('$fullName', '$username', '$password', '$role')";
-
-        if (mysqli_query($conn, $query)) {
-            $message = "User added successfully!";
+        // Validate role
+        $allowedRoles = ['admin', 'staff'];
+        if (!in_array($role, $allowedRoles, true)) {
+            $message = "Invalid role selected.";
+        } elseif (empty($fullName) || empty($username) || empty($rawPassword)) {
+            $message = "All fields are required.";
+        } elseif (strlen($rawPassword) < 8) {
+            $message = "Password must be at least 8 characters.";
         } else {
-            $message = "Error: " . mysqli_error($conn);
+            $password = password_hash($rawPassword, PASSWORD_BCRYPT);
+            // Insert user
+            $stmt = mysqli_prepare($conn,
+                "INSERT INTO users (full_name, username, password, roles) VALUES (?, ?, ?, ?)"
+            );
+            mysqli_stmt_bind_param($stmt, 'ssss', $fullName, $username, $password, $role);
+
+            if (mysqli_stmt_execute($stmt)) {
+                $message = "User added successfully!";
+                // Refresh token
+                $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+            } else {
+                $message = "Error: " . mysqli_stmt_error($stmt);
+            }
+            mysqli_stmt_close($stmt);
         }
     }
 }
@@ -46,7 +69,7 @@ if (isset($_POST['submit'])) {
     <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Funnel+Sans:ital,wght@0,300..800;1,300..800&family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&family=Mona+Sans:ital,wght@0,200..900;1,200..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/admin/style.css">
 </head>
 
 <body>
@@ -62,9 +85,9 @@ if (isset($_POST['submit'])) {
         </button>
         </div>
 
-        <!-- DROPDOWN -->
+        <!-- Dropdown -->
         <div class="dropdown" id="dropdownMenu">
-            <p>Greetings, <?php echo $name?>!</p>
+            <p>Greetings, <?php echo htmlspecialchars($name ?? ''); ?>!</p>
             <a href="logout.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#000000"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z"/></svg>Logout</a>
         </div>
 
@@ -80,7 +103,7 @@ btn.addEventListener("click", function (e) {
     menu.classList.toggle("active");
 });
 
-// close when clicking outside
+// Close dropdown on outside click
 document.addEventListener("click", function () {
     menu.classList.remove("active");
 });
@@ -95,11 +118,13 @@ document.addEventListener("click", function () {
 
         <?php if ($message != "") { ?>
             <div class="message-box">
-                <?php echo $message; ?>
+                <?php echo htmlspecialchars($message); ?>
             </div>
         <?php } ?>
 
         <form method="POST" class="form-grid">
+            <!-- CSRF field -->
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
 
             <div class="input-group">
                 <label>Full Name</label>
@@ -113,7 +138,7 @@ document.addEventListener("click", function () {
 
             <div class="input-group">
                 <label>Password</label>
-                <input type="password" name="password" placeholder="Enter password" required>
+                <input type="password" name="password" placeholder="Enter password (min. 8 characters)" minlength="8" required>
             </div>
 
             <div class="input-group">

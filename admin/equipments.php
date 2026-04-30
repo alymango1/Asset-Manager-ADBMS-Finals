@@ -1,7 +1,12 @@
 <?php
+session_start();
+
 include('../database/db.php');
 
-session_start();
+// CSRF token
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: login.php");
@@ -16,18 +21,26 @@ if (isset($_SESSION['full_name'])) {
     $name = $nameParts[0]; // first name only
 }
 
-// ── Search & Filter params ──────────────────────────────────────
+// Build profile initials
+$fullNameRaw = trim(preg_replace('/\s+/', ' ', (string)($_SESSION['full_name'] ?? $name)));
+$parts = $fullNameRaw !== '' ? preg_split('/\s+/', $fullNameRaw) : [];
+$first = $parts[0] ?? '';
+$last  = count($parts) > 1 ? $parts[count($parts) - 1] : '';
+$profileInitials = strtoupper(substr($first, 0, 1) . ($last !== '' ? substr($last, 0, 1) : substr($first, 1, 1)));
+$profileInitials = $profileInitials !== '' ? $profileInitials : 'U';
+
+// Search filters
 $search   = isset($_GET['search'])   ? trim(mysqli_real_escape_string($conn, $_GET['search']))   : '';
 $category = isset($_GET['category']) ? trim(mysqli_real_escape_string($conn, $_GET['category'])) : '';
 $status   = isset($_GET['status'])   ? trim(mysqli_real_escape_string($conn, $_GET['status']))   : '';
 
-// Build WHERE clause
+// Build conditions
 $where = "WHERE 1=1";
 if ($search   !== '') $where .= " AND resource_name LIKE '%$search%'";
 if ($category !== '') $where .= " AND categories = '$category'";
 if ($status   !== '') $where .= " AND status = '$status'";
 
-// ── Pagination ──────────────────────────────────────────────────
+// Pagination
 $limit  = 10;
 $page   = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page - 1) * $limit;
@@ -46,8 +59,14 @@ $equipmentsQuery = mysqli_query($conn, "
     ORDER BY equipment_id ASC
     LIMIT $limit OFFSET $offset
 ");
+$equipmentRows = mysqli_num_rows($equipmentsQuery);
 
-// Build query string that pagination links carry forward
+$totalEquipment = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS total FROM equipments"))['total'];
+$totalAvailable = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS total FROM equipments WHERE status = 'Available'"))['total'];
+$totalInUse = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS total FROM equipments WHERE status = 'In-Use'"))['total'];
+$totalMaintenance = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS total FROM equipments WHERE status = 'Under Maintenance'"))['total'];
+
+// Keep filters in pagination
 $queryParams = [];
 if ($search   !== '') $queryParams[] = 'search='   . urlencode($search);
 if ($category !== '') $queryParams[] = 'category=' . urlencode($category);
@@ -56,69 +75,103 @@ $filterString = count($queryParams) ? '&' . implode('&', $queryParams) : '';
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Equipments</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+    <title>Equipments — BSU Asset Manager</title>
+    <link rel="icon" href="../img/favicon-96.png" type="image/png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Funnel+Sans:ital,wght@0,300..800;1,300..800&family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&family=Mona+Sans:ital,wght@0,200..900;1,200..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/admin/style.css">
+    <link rel="stylesheet" href="../css/admin/sidebar.css">
+    <link rel="stylesheet" href="../css/admin/equipments.css">
+    <link rel="stylesheet" href="../css/admin/modal.css">
 </head>
 
 <body>
 
 <?php include('sidebar.php');?>
 
-<div class="header">
-    <h1>Equipments</h1>
-    <div class="header-right">
-        <button class="profile_btn" id="profileBtn">
-            <svg xmlns="http://www.w3.org/2000/svg" height="34px" viewBox="0 -960 960 960" width="40px" fill="#FFFFFF"><path d="M226-262q59-42.33 121.33-65.5 62.34-23.17 132.67-23.17 70.33 0 133 23.17T734.67-262q41-49.67 59.83-103.67T813.33-480q0-141-96.16-237.17Q621-813.33 480-813.33t-237.17 96.16Q146.67-621 146.67-480q0 60.33 19.16 114.33Q185-311.67 226-262Zm155.83-224.5Q342-526.33 342-584.67q0-58.33 39.83-98.16 39.84-39.84 98.17-39.84t98.17 39.84Q618-643 618-584.67q0 58.34-39.83 98.17-39.84 39.83-98.17 39.83t-98.17-39.83ZM480-80q-82.33 0-155.33-31.5-73-31.5-127.34-85.83Q143-251.67 111.5-324.67T80-480q0-83 31.5-155.67 31.5-72.66 85.83-127Q251.67-817 324.67-848.5T480-880q83 0 155.67 31.5 72.66 31.5 127 85.83 54.33 54.34 85.83 127Q880-563 880-480q0 82.33-31.5 155.33-31.5 73-85.83 127.34-54.34 54.33-127 85.83Q563-80 480-80Zm105-82.5q50.67-15.83 97.67-52.17-47-33.66-98-51.5Q533.67-284 480-284t-104.67 17.83q-51 17.84-98 51.5 47 36.34 97.67 52.17 50.67 15.83 105 15.83t105-15.83Zm-53.67-370.83q20-20 20-51.34 0-31.33-20-51.33T480-656q-31.33 0-51.33 20t-20 51.33q0 31.34 20 51.34 20 20 51.33 20t51.33-20ZM480-584.67Zm0 369.34Z"/></svg>
-        </button>
+<header class="topbar">
+    <div class="topbar-title">
+        <h1>Equipments</h1>
+        <p>Control inventory, availability, and lifecycle state</p>
     </div>
-    <!-- DROPDOWN -->
-    <div class="dropdown" id="dropdownMenu">
-        <p>Greetings, <?php echo $name ?>!</p>
-        <a href="logout.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#000000"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z"/></svg>Logout</a>
+    <div class="topbar-right">
+        <span class="topbar-date"><?php echo date('l, F j, Y'); ?></span>
+        <div class="profile-wrap">
+            <button class="profile-btn" id="profileBtn">
+                <?php echo htmlspecialchars($profileInitials); ?>
+            </button>
+            <div class="profile-dropdown" id="profileDropdown">
+                <div class="profile-dropdown-header">
+                    <p><?php echo htmlspecialchars($_SESSION['full_name'] ?? $name); ?></p>
+                    <p>Administrator</p>
+                </div>
+                <a href="logout.php" class="danger">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 -960 960 960" fill="currentColor"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z"/></svg>
+                    Sign Out
+                </a>
+            </div>
+        </div>
     </div>
-</div>
-</div>
+</header>
 
-<script>
-const btn = document.getElementById("profileBtn");
-const menu = document.getElementById("dropdownMenu");
-btn.addEventListener("click", function(e) {
-    e.stopPropagation();
-    menu.classList.toggle("active");
-});
-document.addEventListener("click", function() {
-    menu.classList.remove("active");
-});
-</script>
-
-<a href="add_equipment.php" class="fab" title="Add Equipment">
+<button type="button" class="fab" id="openAddEquipment" title="Add Equipment" aria-label="Add Equipment">
     <svg xmlns="http://www.w3.org/2000/svg" height="28px" viewBox="0 -960 960 960" width="28px" fill="#fff">
         <path d="M440-440H200v-80h240v-240h80v240h240v80H520v240h-80v-240Z"/>
     </svg>
-</a>
+</button>
 
-<div class="main">
+<main class="main">
+    <section class="equip-hero">
+        <div class="equip-hero-copy">
+            <p class="eyebrow">Inventory Administration</p>
+            <h2>Equipment Control Workspace</h2>
+            <p class="hero-subtitle">Track assets, monitor utilization, and keep scheduling availability accurate across all categories.</p>
+        </div>
+    </section>
 
-    <div class="table-wrap">
+    <section class="equip-metrics">
+        <article class="metric-card metric-all">
+            <div class="metric-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 -960 960 960" fill="currentColor"><path d="M756-120 537-339l84-84 219 219-84 84Zm-552 0-84-84 276-276-68-68-28 28-51-51v82l-28 28-121-121 28-28h82l-50-50 142-142q20-20 43-29t47-9q24 0 47 9t43 29l-92 92 50 50-28 28 68 68 90-90q-4-11-6.5-23t-2.5-24q0-59 40.5-99.5T701-841q15 0 28.5 3t27.5 9l-99 99 72 72 99-99q7 14 9.5 27.5T841-701q0 59-40.5 99.5T701-561q-12 0-24-2t-23-7L204-120Z"/></svg>
+            </div>
+            <div class="metric-body"><p>Total Equipment</p><strong><?php echo $totalEquipment; ?></strong></div>
+        </article>
+        <article class="metric-card metric-available">
+            <div class="metric-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 -960 960 960" fill="currentColor"><path d="m424-296 282-282-56-56-226 226-114-114-56 56 170 170Zm56 216q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z"/></svg>
+            </div>
+            <div class="metric-body"><p>Available</p><strong><?php echo $totalAvailable; ?></strong></div>
+        </article>
+        <article class="metric-card metric-inuse">
+            <div class="metric-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 -960 960 960" fill="currentColor"><path d="M440-160q-121-15-200.5-105.5T160-480q0-66 26-126t72-106l57 57q-38 34-56.5 79T240-480q0 88 56 151.5T440-257v97Zm80 0v-97q69-8 124.5-71T700-480q0-100-70-170t-170-70h-3l44 44-56 56-140-140 140-140 56 57-44 43h3q134 0 227 93t93 227q0 121-79.5 211.5T520-160Z"/></svg>
+            </div>
+            <div class="metric-body"><p>In-Use</p><strong><?php echo $totalInUse; ?></strong></div>
+        </article>
+        <article class="metric-card metric-maintenance">
+            <div class="metric-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 -960 960 960" fill="currentColor"><path d="M686-132 444-376q-20 8-43 12t-47 4q-100 0-170-70t-70-170q0-27 4-52t12-48l138 138 92-92-138-138q23-8 48-12t52-4q100 0 170 70t70 170q0 24-4 47t-12 43l244 242q12 12 12 29t-12 29l-56 56q-12 12-29 12t-29-12Z"/></svg>
+            </div>
+            <div class="metric-body"><p>Maintenance</p><strong><?php echo $totalMaintenance; ?></strong></div>
+        </article>
+    </section>
 
-        <h2>Equipment List</h2>
+    <section class="content-grid">
+    <div class="table-wrap section-card">
 
-        <?php if (isset($_SESSION['success'])): ?>
-            <div class="message-box success"><?php echo htmlspecialchars($_SESSION['success']); unset($_SESSION['success']); ?></div>
-        <?php endif; ?>
-        <?php if (isset($_SESSION['error'])): ?>
-            <div class="message-box error"><?php echo htmlspecialchars($_SESSION['error']); unset($_SESSION['error']); ?></div>
-        <?php endif; ?>
+        <div class="section-header">
+            <h2>Equipment List</h2>
 
-        <!-- ── Search & Filter Bar (always below the title) ── -->
+            <!-- Search filters -->
         <div class="search-filter-bar-wrap">
             <form method="GET" action="equipments.php" class="search-filter-bar">
-                <div class="search-input-wrap">
+                <div class="search-input-wrap sf-search-input">
                     <svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="#999"><path d="M784-120 532-372q-30 24-69 38t-83 14q-109 0-184.5-75.5T120-580q0-109 75.5-184.5T380-840q109 0 184.5 75.5T640-580q0 44-14 83t-38 69l252 252-56 56ZM380-400q75 0 127.5-52.5T560-580q0-75-52.5-127.5T380-760q-75 0-127.5 52.5T200-580q0 75 52.5 127.5T380-400Z"/></svg>
                     <input
                         type="text"
@@ -129,24 +182,24 @@ document.addEventListener("click", function() {
                     >
                 </div>
 
-                <select name="category">
+                <select name="category" class="sf-category">
                     <option value="">All Categories</option>
                     <option value="IT Equipment"     <?php if($category === 'IT Equipment')     echo 'selected'; ?>>IT Equipment</option>
                     <option value="Classroom"        <?php if($category === 'Classroom')        echo 'selected'; ?>>Classroom</option>
                     <option value="Events Equipment" <?php if($category === 'Events Equipment') echo 'selected'; ?>>Events Equipment</option>
                 </select>
 
-                <select name="status">
+                <select name="status" class="sf-status">
                     <option value="">All Statuses</option>
                     <option value="Available"         <?php if($status === 'Available')         echo 'selected'; ?>>Available</option>
                     <option value="In-Use"            <?php if($status === 'In-Use')            echo 'selected'; ?>>In-Use</option>
                     <option value="Under Maintenance" <?php if($status === 'Under Maintenance') echo 'selected'; ?>>Under Maintenance</option>
                 </select>
 
-                <button type="submit" class="btn-search">Search</button>
+                <button type="submit" class="btn-search sf-search-btn">Search</button>
 
                 <?php if ($search !== '' || $category !== '' || $status !== ''): ?>
-                    <a href="equipments.php" class="btn-clear-filter">&#x2715; Clear</a>
+                    <a href="equipments.php" class="btn-clear-filter sf-clear-btn">&#x2715; Clear</a>
                 <?php endif; ?>
             </form>
 
@@ -159,6 +212,16 @@ document.addEventListener("click", function() {
                 <?php endif; ?>
             </p>
         </div>
+        </div>
+
+        <?php if (isset($_SESSION['success'])): ?>
+            <div class="message-box success"><?php echo htmlspecialchars($_SESSION['success']); unset($_SESSION['success']); ?></div>
+        <?php endif; ?>
+        <?php if (isset($_SESSION['error'])): ?>
+            <div class="message-box error"><?php echo htmlspecialchars($_SESSION['error']); unset($_SESSION['error']); ?></div>
+        <?php endif; ?>
+
+        
 
         <table class="transaction_table equipment" width="100%" cellpadding="10" cellspacing="0">
             <tr>
@@ -182,7 +245,7 @@ document.addEventListener("click", function() {
                 <td><?php echo htmlspecialchars($row['resource_name']); ?></td>
                 <td><?php echo htmlspecialchars($row['categories']); ?></td>
                 <td class="status <?php echo strtolower(str_replace(' ', '-', $row['status'])); ?>">
-                    <?php echo strtoupper($row['status']); ?>
+                    <span class="status-pill"><?php echo htmlspecialchars($row['status']); ?></span>
                 </td>
                 <td class="actions">
                     <div class="action-menu-wrap">
@@ -205,10 +268,15 @@ document.addEventListener("click", function() {
                             </a>
                             <?php endif; ?>
                             <div class="action-divider"></div>
-                            <a class="action-item action-delete" href="delete_equipment.php?id=<?php echo $row['equipment_id']; ?>" onclick="return confirm('Delete <?php echo addslashes(htmlspecialchars($row['resource_name'])); ?>? This cannot be undone.');">
+                            <form method="POST" action="delete_equipment.php" style="display:contents;" class="delete-equipment-form">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                <input type="hidden" name="id" value="<?php echo $row['equipment_id']; ?>">
+                                <button type="button" class="action-item action-delete" style="background:none;border:none;cursor:pointer;width:100%;text-align:left;padding:0;"
+                                    onclick="openDeleteEquipmentModal(this.form, 'Delete <?php echo addslashes(htmlspecialchars($row['resource_name'])); ?>? This cannot be undone.')">
                                 <svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360ZM280-720v520-520Z"/></svg>
                                 Delete
-                            </a>
+                                </button>
+                            </form>
                         </div>
                     </div>
                 </td>
@@ -217,7 +285,14 @@ document.addEventListener("click", function() {
             <?php endif; ?>
         </table>
 
-        <!-- Pagination — carries filter params forward -->
+        <!-- Pagination -->
+        <?php if ($equipmentRows > 0 && $equipmentRows < $limit): ?>
+        <div class="table-filler">
+            <p>Your inventory panel has room for more assets.</p>
+            <span>New equipment entries will appear here automatically.</span>
+        </div>
+        <?php endif; ?>
+
         <?php if ($totalPages > 1): ?>
         <div class="pagination">
             <?php if ($page > 1): ?>
@@ -238,39 +313,191 @@ document.addEventListener("click", function() {
         <?php endif; ?>
 
     </div>
-
-    <br><br>
-
-    <div class="table-wrap intro-card">
-        <h2>Equipment Management Guide</h2>
-        <p class="intro-text">
-            This system allows administrators to manage and monitor all equipment records in real time.
-            You can track availability, handle reservations, and maintain proper inventory control across the organization.
-        </p>
-        <div class="intro-grid">
-            <div class="intro-item">
-                <h3>Inventory Tracking</h3>
-                <p>View all registered equipment including status and category.</p>
-            </div>
-            <div class="intro-item">
-                <h3>Inventory Expansion</h3>
-                <p>Register new equipment to the database.</p>
-            </div>
-            <div class="intro-item">
-                <h3>Maintenance Control</h3>
-                <p>Flag items under maintenance to prevent scheduling conflicts.</p>
-            </div>
-            <div class="intro-item">
-                <h3>Role-Based Access</h3>
-                <p>Ensure only authorized users can modify equipment data.</p>
+    <div class="right-panel">
+        <div class="guide-card">
+            <h3>Equipment Management Guide</h3>
+            <p>Keep operations smooth by maintaining clear status updates and consistent category organization.</p>
+            <ul>
+                <li>Use precise categories to make resources easier to locate.</li>
+                <li>Mark damaged items as maintenance immediately.</li>
+                <li>Review in-use assets regularly for timely returns.</li>
+            </ul>
+        </div>
+        <div class="quick-actions">
+            <h3>Quick Actions</h3>
+            <div class="action-list-mini">
+                <a href="#" id="openAddEquipmentInline" onclick="event.preventDefault(); document.getElementById('openAddEquipment').click();">
+                    <span class="mini-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 -960 960 960" fill="currentColor"><path d="M446.67-120v-326.67H120v-66.66h326.67V-840h66.66v326.67H840v66.66H513.33V-120h-66.66Z"/></svg>
+                    </span>
+                    Add Equipment
+                </a>
+                <a href="in_use.php">
+                    <span class="mini-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 -960 960 960" fill="currentColor"><path d="M440-160q-121-15-200.5-105.5T160-480q0-66 26-126t72-106l57 57q-38 34-56.5 79T240-480q0 88 56 151.5T440-257v97Zm80 0v-97q69-8 124.5-71T700-480q0-100-70-170t-170-70h-3l44 44-56 56-140-140 140-140 56 57-44 43h3q134 0 227 93t93 227q0 121-79.5 211.5T520-160Z"/></svg>
+                    </span>
+                    View In-Use Items
+                </a>
+                <a href="transactions.php">
+                    <span class="mini-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 -960 960 960" fill="currentColor"><path d="M280-600v-80h400v80H280Zm0 160v-80h240v80H280Zm0 160v-80h400v80H280ZM200-80q-33 0-56.5-23.5T120-160v-640q0-33 23.5-56.5T200-880h560q33 0 56.5 23.5T840-800v640q0 33-23.5 56.5T760-80H200Z"/></svg>
+                    </span>
+                    Open Transactions
+                </a>
             </div>
         </div>
     </div>
+</section>
+</main>
 
+<div class="modal-overlay" id="deleteEquipmentModal">
+    <div class="modal-box confirm-modern">
+        <button type="button" class="confirm-close" onclick="closeDeleteEquipmentModal()" aria-label="Close">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 -960 960 960" fill="currentColor"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/></svg>
+        </button>
+        <div class="confirm-icon-wrap">
+            <span class="confirm-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 -960 960 960" fill="currentColor"><path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Z"/></svg>
+            </span>
+        </div>
+        <h3>Are you sure?</h3>
+        <p id="deleteEquipmentModalMsg" class="confirm-body">Are you sure?</p>
+        <div class="modal-actions confirm-actions">
+            <button type="button" class="confirm-btn-danger" id="confirmDeleteEquipmentBtn">Delete Equipment</button>
+            <button type="button" class="confirm-btn-secondary" onclick="closeDeleteEquipmentModal()">Cancel</button>
+        </div>
+    </div>
 </div>
 
+<!-- Add equipment modal -->
+<div class="ae-modal-overlay" id="addEquipmentModal" role="dialog" aria-modal="true">
+    <div class="ae-modal-card">
+        <div class="ae-modal-head">
+            <div>
+                <p class="ae-modal-kicker">Inventory Administration</p>
+                <h3 class="ae-modal-title">Add new equipment</h3>
+                <p class="ae-modal-subtitle">Create an item and set its category.</p>
+            </div>
+            <button type="button" class="ae-modal-close" id="closeAddEquipment" aria-label="Close">
+                &#x2715;
+            </button>
+        </div>
 
-<!-- ── Edit Status Modal ── -->
+        <div class="ae-modal-message" id="addEquipMsg"></div>
+
+        <form method="POST" class="ae-form" id="addEquipmentForm" autocomplete="off">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+            <input type="hidden" name="ajax" value="1">
+            <input type="hidden" name="add" value="1">
+
+            <div class="input-group span-2">
+                <label>Resource Name</label>
+                <input type="text" name="resource_name" placeholder="Example: Projector, HDMI Cable, Laptop" required>
+            </div>
+
+            <div class="input-group span-2">
+                <label>Category</label>
+                <select name="category" required>
+                    <option value="">Select Category</option>
+                    <option value="IT Equipment">IT Equipment</option>
+                    <option value="Classroom">Classroom</option>
+                    <option value="Events Equipment">Events Equipment</option>
+                </select>
+            </div>
+
+            <div class="ae-actions">
+                <button type="button" class="ae-btn-secondary" id="cancelAddEquipment">Cancel</button>
+                <button type="submit" class="ae-btn-primary" id="submitAddEquipment">Add Equipment</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+const profileBtn = document.getElementById('profileBtn');
+const profileDropdown = document.getElementById('profileDropdown');
+profileBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    profileDropdown.classList.toggle('open');
+});
+document.addEventListener('click', () => {
+    profileDropdown.classList.remove('open');
+});
+</script>
+
+<script>
+const openAddBtn = document.getElementById('openAddEquipment');
+const addModal = document.getElementById('addEquipmentModal');
+const closeAddBtn = document.getElementById('closeAddEquipment');
+const cancelAddBtn = document.getElementById('cancelAddEquipment');
+const addForm = document.getElementById('addEquipmentForm');
+const addMsg = document.getElementById('addEquipMsg');
+const submitBtn = document.getElementById('submitAddEquipment');
+
+function showAddModal() {
+    addMsg.className = 'ae-modal-message';
+    addMsg.textContent = '';
+    addModal.classList.add('active');
+    document.body.classList.add('ae-modal-open');
+    const firstInput = addForm.querySelector('input[name="resource_name"]');
+    if (firstInput) firstInput.focus();
+}
+
+function hideAddModal() {
+    addModal.classList.remove('active');
+    document.body.classList.remove('ae-modal-open');
+    addForm.reset();
+    addForm.querySelector('input[name="ajax"]').value = '1';
+    addForm.querySelector('input[name="add"]').value = '1';
+    addForm.querySelector('input[name="csrf_token"]').value = document.querySelector('meta[name="csrf-token"]').content;
+}
+
+openAddBtn.addEventListener('click', showAddModal);
+closeAddBtn.addEventListener('click', hideAddModal);
+cancelAddBtn.addEventListener('click', hideAddModal);
+addModal.addEventListener('click', (e) => {
+    if (e.target === addModal) hideAddModal();
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && addModal.classList.contains('active')) hideAddModal();
+});
+
+// Sync CSRF token
+addForm.querySelector('input[name="csrf_token"]').value = document.querySelector('meta[name="csrf-token"]').content;
+
+addForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    addMsg.className = 'ae-modal-message';
+    addMsg.textContent = '';
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Adding…';
+
+    try {
+        const fd = new FormData(addForm);
+        const res = await fetch('add_equipment.php', { method: 'POST', body: fd });
+        const data = await res.json();
+
+        if (data && data.success) {
+            addMsg.className = 'ae-modal-message success show';
+            addMsg.textContent = data.message || 'Equipment added.';
+            setTimeout(() => location.reload(), 600);
+        } else {
+            addMsg.className = 'ae-modal-message error show';
+            addMsg.textContent = (data && data.message) ? data.message : 'Add failed.';
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Add Equipment';
+        }
+    } catch (err) {
+        addMsg.className = 'ae-modal-message error show';
+        addMsg.textContent = 'Network error. Please try again.';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Add Equipment';
+    }
+});
+</script>
+
+
+<!-- Edit status modal -->
 <div class="modal-overlay" id="editStatusModal">
     <div class="modal-box">
         <h3>Edit Equipment Status</h3>
@@ -301,198 +528,7 @@ document.addEventListener("click", function() {
 </div>
 
 
-<style>
-/* ── Search & Filter Bar ── */
 
-/* Title on its own line */
-.table-wrap h2 {
-    margin: 0 0 14px 0;
-}
-
-/* Wrapper always stays below the title — never shifts */
-.search-filter-bar-wrap {
-    margin-bottom: 16px;
-    padding: 14px 16px;
-    background: #fafafa;
-    border: 1px solid #ebebeb;
-    border-radius: 10px;
-}
-
-.search-filter-bar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-bottom: 10px;
-}
-
-.result-count {
-    font-size: 0.85rem;
-    color: #777;
-    margin: 0;
-}
-
-.search-input-wrap {
-    position: relative;
-    display: flex;
-    align-items: center;
-}
-.search-input-wrap svg {
-    position: absolute;
-    left: 10px;
-    pointer-events: none;
-}
-.search-input-wrap input {
-    padding: 8px 12px 8px 34px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    font-size: 0.875rem;
-    width: 200px;
-    font-family: inherit;
-    transition: border-color 0.15s;
-}
-.search-input-wrap input:focus {
-    outline: none;
-    border-color: #4a5568;
-}
-
-.search-filter-bar select {
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    font-size: 0.875rem;
-    font-family: inherit;
-    background: #fff;
-    cursor: pointer;
-    transition: border-color 0.15s;
-}
-.search-filter-bar select:focus {
-    outline: none;
-    border-color: #4a5568;
-}
-
-.btn-search {
-    padding: 8px 18px;
-    background: #1a1a2e;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    font-size: 0.875rem;
-    font-weight: 600;
-    cursor: pointer;
-    font-family: inherit;
-    transition: background 0.15s;
-}
-.btn-search:hover { background: #2d2d50; }
-
-.btn-clear-filter {
-    padding: 8px 14px;
-    background: #f0f0f0;
-    color: #555;
-    border-radius: 8px;
-    font-size: 0.875rem;
-    text-decoration: none;
-    transition: background 0.15s;
-}
-.btn-clear-filter:hover { background: #e0e0e0; color: #222; }
-
-/* ── Edit Status Modal ── */
-.modal-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.55);
-    backdrop-filter: blur(3px);
-    z-index: 9999;
-    align-items: center;
-    justify-content: center;
-}
-.modal-overlay.active { display: flex; }
-.modal-box {
-    background: #fff;
-    border-radius: 12px;
-    padding: 28px 28px 22px;
-    width: 460px;
-    max-width: 92vw;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
-    animation: modalIn 0.2s ease;
-}
-@keyframes modalIn {
-    from { transform: scale(0.92); opacity: 0; }
-    to   { transform: scale(1);    opacity: 1; }
-}
-.modal-box h3 { margin: 0 0 18px; font-size: 1.15rem; color: #1a1a2e; }
-.modal-info-row { display: flex; gap: 20px; margin-bottom: 20px; }
-.modal-info-group { flex: 1; }
-.modal-info-group label {
-    display: block;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: #888;
-    margin-bottom: 4px;
-}
-.modal-info-group p {
-    margin: 0;
-    font-size: 0.95rem;
-    color: #222;
-    font-weight: 500;
-    background: #f5f5f5;
-    padding: 8px 12px;
-    border-radius: 6px;
-}
-.modal-status-group { margin-bottom: 6px; }
-.modal-status-group > label {
-    display: block;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: #888;
-    margin-bottom: 10px;
-}
-.status-options { display: flex; gap: 10px; flex-wrap: wrap; }
-.status-chip {
-    padding: 8px 18px;
-    border-radius: 20px;
-    border: 2px solid transparent;
-    font-size: 0.85rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.15s;
-    background: #f0f0f0;
-    color: #555;
-}
-.status-chip.available.selected   { background: #d4edda; border-color: #28a745; color: #155724; }
-.status-chip.in-use.selected      { background: #fff3cd; border-color: #ffc107; color: #856404; }
-.status-chip.maintenance.selected { background: #f8d7da; border-color: #dc3545; color: #721c24; }
-.status-chip.available:hover   { background: #e9f7ec; }
-.status-chip.in-use:hover      { background: #fffbea; }
-.status-chip.maintenance:hover { background: #fdf0f1; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
-.btn-cancel {
-    padding: 8px 18px;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    background: #fff;
-    cursor: pointer;
-    font-size: 0.9rem;
-}
-.btn-cancel:hover { background: #f5f5f5; }
-.btn-confirm-edit {
-    padding: 8px 20px;
-    border: none;
-    border-radius: 6px;
-    background: #1a1a2e;
-    color: #fff;
-    cursor: pointer;
-    font-size: 0.9rem;
-    font-weight: 600;
-}
-.btn-confirm-edit:hover    { background: #2d2d50; }
-.btn-confirm-edit:disabled { opacity: 0.6; cursor: not-allowed; }
-</style>
 
 <script>
 let _editId = null;
@@ -534,6 +570,7 @@ function submitEditStatus() {
     form.append('id', _editId);
     form.append('status', _selectedStatus);
     form.append('update', '1');
+    form.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
     fetch('update_equipment_status.php', { method: 'POST', body: form })
         .then(res => res.json())
         .then(data => {
@@ -555,7 +592,7 @@ function submitEditStatus() {
 </script>
 
 
-<!-- ── Quick Return Modal (from Equipments page) ── -->
+<!-- Quick return modal -->
 <div class="modal-overlay" id="quickReturnModal">
     <div class="modal-box">
         <h3 style="color:#1a1a2e; display:flex; align-items:center; gap:8px;">
@@ -573,7 +610,7 @@ function submitEditStatus() {
                 Return Notes <span style="font-weight:400; color:#999;">(optional)</span>
             </label>
             <textarea id="qrRemarks"
-                placeholder="e.g. Returned in good condition…"
+                placeholder="Example: Returned in good condition."
                 style="width:100%; border:1px solid #ddd; border-radius:8px; padding:9px 12px; font-size:0.875rem; font-family:inherit; resize:vertical; min-height:75px; box-sizing:border-box;"></textarea>
         </div>
         <p id="qrModalMsg" style="color:red; font-size:0.82rem; min-height:1.1em; margin-top:6px;"></p>
@@ -591,102 +628,7 @@ function submitEditStatus() {
 <!-- Toast -->
 <div id="equipToast" style="position:fixed; bottom:28px; right:28px; background:#1a1a2e; color:#fff; padding:14px 22px; border-radius:10px; font-size:0.88rem; font-weight:500; box-shadow:0 4px 20px rgba(0,0,0,0.22); opacity:0; transform:translateY(12px); transition:opacity 0.25s,transform 0.25s; pointer-events:none; z-index:99999; max-width:360px; border-left:4px solid #22c55e;"></div>
 
-<style>
-/* ── Kebab action menu ── */
-.action-menu-wrap {
-    position: relative;
-    display: inline-block;
-}
-.action-kebab {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3.5px;
-    width: 32px;
-    height: 32px;
-    background: transparent;
-    border: 1px solid #e2e2e2;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
-    padding: 0;
-}
-.action-kebab span {
-    display: block;
-    width: 4px;
-    height: 4px;
-    background: #555;
-    border-radius: 50%;
-    transition: background 0.15s;
-}
-.action-kebab:hover {
-    background: #f4f4f8;
-    border-color: #bbb;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-}
-.action-kebab:hover span { background: #1a1a2e; }
-.action-kebab.open {
-    background: #1a1a2e;
-    border-color: #1a1a2e;
-}
-.action-kebab.open span { background: #fff; }
 
-.action-dropdown {
-    display: none;
-    position: absolute;
-    right: 0;
-    top: calc(100% + 6px);
-    background: #fff;
-    border: 1px solid #e8e8e8;
-    border-radius: 10px;
-    box-shadow: 0 8px 30px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
-    z-index: 1000;
-    min-width: 172px;
-    padding: 5px;
-    animation: dropIn 0.15s ease;
-}
-.action-dropdown.open { display: block; }
-
-@keyframes dropIn {
-    from { opacity: 0; transform: translateY(-6px) scale(0.97); }
-    to   { opacity: 1; transform: translateY(0)   scale(1); }
-}
-
-.action-item {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    padding: 8px 11px;
-    font-size: 0.845rem;
-    font-weight: 500;
-    color: #2d2d2d;
-    text-decoration: none;
-    border-radius: 7px;
-    transition: background 0.12s, color 0.12s;
-    white-space: nowrap;
-    cursor: pointer;
-}
-.action-item svg { flex-shrink: 0; opacity: 0.7; }
-.action-item:hover { background: #f4f4f8; color: #1a1a2e; }
-.action-item:hover svg { opacity: 1; }
-
-.action-return { color: #15803d; }
-.action-return:hover { background: #f0fdf4; color: #166534; }
-.action-delete { color: #b91c1c; }
-.action-delete:hover { background: #fff1f1; color: #991b1b; }
-
-.action-divider {
-    height: 1px;
-    background: #f0f0f0;
-    margin: 4px 6px;
-}
-.transaction_table.equipment td.actions,
-.transaction_table.equipment th:last-child {
-    width: 52px;
-    text-align: center;
-}
-</style>
 
 <script>
 let _qrId   = null;
@@ -723,6 +665,7 @@ function submitQuickReturn() {
     const fd = new FormData();
     fd.append('equipment_id', _qrId);
     fd.append('remarks', remarks);
+    fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
 
     fetch('return_equipment.php', { method: 'POST', body: fd })
         .then(r => r.json())
@@ -753,7 +696,24 @@ function submitQuickReturn() {
 </script>
 
 <script>
-// ── Kebab menu logic ──────────────────────────────────────────
+// Action menu
+let _deleteEquipmentForm = null;
+function openDeleteEquipmentModal(formEl, message) {
+    _deleteEquipmentForm = formEl;
+    document.getElementById('deleteEquipmentModalMsg').textContent = 'Delete this equipment record? This action cannot be undone.';
+    document.getElementById('deleteEquipmentModal').classList.add('active');
+}
+function closeDeleteEquipmentModal() {
+    document.getElementById('deleteEquipmentModal').classList.remove('active');
+    _deleteEquipmentForm = null;
+}
+document.getElementById('confirmDeleteEquipmentBtn').addEventListener('click', function() {
+    if (_deleteEquipmentForm) _deleteEquipmentForm.submit();
+});
+document.getElementById('deleteEquipmentModal').addEventListener('click', function(e) {
+    if (e.target === this) closeDeleteEquipmentModal();
+});
+
 function toggleMenu(btn) {
     const wrap = btn.closest('.action-menu-wrap');
     const drop = wrap.querySelector('.action-dropdown');
@@ -762,7 +722,7 @@ function toggleMenu(btn) {
     if (!isOpen) {
         drop.classList.add('open');
         btn.classList.add('open');
-        // Flip upward if near bottom of viewport
+        // Open upward near viewport bottom
         const rect = drop.getBoundingClientRect();
         if (rect.bottom > window.innerHeight - 16) {
             drop.style.top  = 'auto';

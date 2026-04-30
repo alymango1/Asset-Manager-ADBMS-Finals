@@ -1,10 +1,15 @@
 <?php
-include('../database/db.php');
 session_start();
+include('../database/db.php');
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: login.php");
     exit();
+}
+
+// CSRF token
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 $name = "User";
@@ -13,7 +18,7 @@ if (isset($_SESSION['full_name'])) {
     $name = $nameParts[0];
 }
 
-// Must have a valid ID
+// Require equipment ID
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     header("Location: equipments.php");
     exit();
@@ -21,7 +26,7 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
 
 $id = (int) $_GET['id'];
 
-// Fetch current equipment data
+// Load equipment
 $fetchQuery = mysqli_query($conn, "SELECT * FROM equipments WHERE equipment_id = $id");
 if (!$fetchQuery || mysqli_num_rows($fetchQuery) === 0) {
     header("Location: equipments.php");
@@ -33,6 +38,17 @@ $message = "";
 $messageType = "";
 
 if (isset($_POST['save'])) {
+
+    // CSRF check
+    if (
+        empty($_SESSION['csrf_token']) ||
+        !isset($_POST['csrf_token']) ||
+        !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])
+    ) {
+        $message     = "Invalid request. Please try again.";
+        $messageType = "error";
+    } else {
+
     $resource_name = trim(mysqli_real_escape_string($conn, $_POST['resource_name']));
     $category      = trim(mysqli_real_escape_string($conn, $_POST['category']));
 
@@ -53,16 +69,20 @@ if (isset($_POST['save'])) {
         );
 
         if ($update) {
-            // Refresh data so the form shows the updated values
+            // Reload equipment
             $equipment['resource_name'] = $resource_name;
             $equipment['categories']    = $category;
             $message     = "Equipment updated successfully!";
             $messageType = "success";
+            // Refresh token
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
         } else {
             $message     = "Error: " . mysqli_error($conn);
             $messageType = "error";
         }
     }
+
+    } // end CSRF else
 }
 ?>
 
@@ -73,7 +93,8 @@ if (isset($_POST['save'])) {
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Funnel+Sans:ital,wght@0,300..800;1,300..800&family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&family=Mona+Sans:ital,wght@0,200..900;1,200..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/admin/style.css">
+    <link rel="stylesheet" href="../css/admin/edit_equipment.css">
     <link rel="icon" href="../img/favicon-96.png" type="image/png">
 </head>
 
@@ -90,7 +111,7 @@ if (isset($_POST['save'])) {
         </button>
     </div>
 
-    <!-- DROPDOWN -->
+    <!-- Dropdown -->
     <div class="dropdown" id="dropdownMenu">
         <p>Greetings, <?php echo htmlspecialchars($name); ?>!</p>
         <a href="logout.php">
@@ -126,12 +147,12 @@ document.addEventListener("click", function() {
         <p class="subtitle">Update the name or category of this equipment item.</p>
 
         <?php if ($message !== ""): ?>
-            <div class="message-box <?php echo $messageType; ?>">
+            <div class="message-box <?php echo htmlspecialchars($messageType ?? ''); ?>">
                 <?php echo htmlspecialchars($message); ?>
             </div>
         <?php endif; ?>
 
-        <!-- Read-only info strip -->
+        <!-- Equipment info -->
         <div class="edit-info-strip">
             <div class="edit-info-item">
                 <span class="edit-info-label">Equipment ID</span>
@@ -146,6 +167,8 @@ document.addEventListener("click", function() {
         </div>
 
         <form method="POST" class="form-grid">
+            <!-- CSRF field -->
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
 
             <div class="input-group">
                 <label>Resource Name</label>
@@ -182,66 +205,7 @@ document.addEventListener("click", function() {
     </div>
 </div>
 
-<style>
-.message-box.success {
-    background: #d4edda;
-    color: #155724;
-    border: 1px solid #c3e6cb;
-    padding: 12px 16px;
-    border-radius: 8px;
-    margin-bottom: 18px;
-    font-size: 0.9rem;
-}
-.message-box.error {
-    background: #f8d7da;
-    color: #721c24;
-    border: 1px solid #f5c6cb;
-    padding: 12px 16px;
-    border-radius: 8px;
-    margin-bottom: 18px;
-    font-size: 0.9rem;
-}
-.edit-info-strip {
-    display: flex;
-    gap: 24px;
-    background: #f7f7f9;
-    border: 1px solid #ebebeb;
-    border-radius: 10px;
-    padding: 14px 18px;
-    margin-bottom: 24px;
-    flex-wrap: wrap;
-}
-.edit-info-item {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-.edit-info-label {
-    font-size: 0.72rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: #999;
-}
-.edit-info-value {
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: #1a1a2e;
-}
-.status-badge {
-    display: inline-block;
-    font-size: 0.75rem;
-    font-weight: 700;
-    padding: 3px 10px;
-    border-radius: 20px;
-    letter-spacing: 0.04em;
-}
-.status-badge.available      { background:#d4edda; color:#155724; }
-.status-badge.in-use         { background:#fff3cd; color:#856404; }
-.status-badge.reserved       { background:#d1ecf1; color:#0c5460; }
-.status-badge.under-maintenance { background:#f8d7da; color:#721c24; }
-.status-badge.returned       { background:#e2e3e5; color:#383d41; }
-</style>
+
 
 </body>
 </html>

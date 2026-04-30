@@ -1,0 +1,326 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Serif+Display:ital@0;1&display=swap');
+
+:root {
+    --red: #C8102E;
+    --red-dark: #9B0B22;
+    --bg: #F5F3F2;
+    --surface: #FFFFFF;
+    --border: rgba(0, 0, 0, 0.07);
+    --text-1: #18090C;
+    --text-2: #5A3840;
+    --text-3: #9E7A81;
+    --header-h: 64px;
+    --sb-w: 252px;
+}
+
+html, body {
+    background: var(--bg);
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+}
+
+main.main {
+    margin-left: var(--sb-w);
+    margin-top: var(--header-h);
+    width: calc(100% - var(--sb-w));
+    box-sizing: border-box;
+    padding: 24px 32px 56px;
+}
+
+.hero-card {
+    background: linear-gradient(135deg, var(--red) 0%, #70081A 100%);
+    border-radius: 20px;
+    padding: 24px 28px;
+    margin-bottom: 18px;
+}
+.eyebrow {
+    margin: 0 0 6px;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: rgba(255, 255, 255, 0.72);
+    font-weight: 700;
+}
+.hero-card h2 {
+    margin: 0;
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.5rem;
+    color: #fff;
+    font-weight: 400;
+}
+.hero-subtitle {
+    margin: 8px 0 0;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 0.84rem;
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 18px;
+}
+.metric-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 14px 16px;
+    position: relative;
+}
+.metric-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+}
+.metric-total::after { background: #1a1a2e; }
+.metric-pending::after { background: #facc15; }
+.metric-approved::after { background: #22c55e; }
+.metric-completed::after { background: #64748b; }
+.metric-card p {
+    margin: 0;
+    font-size: 0.72rem;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    font-weight: 700;
+}
+.metric-card strong {
+    margin-top: 2px;
+    display: block;
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.8rem;
+    color: var(--text-1);
+}
+
+.table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.07);
+    padding: 0 18px 18px;
+}
+.section-header {
+    padding: 16px 22px 12px;
+    border-bottom: 1px solid var(--border);
+    margin: 0 -18px 12px;
+}
+.section-header h2 {
+    margin: 0;
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.08rem;
+    font-weight: 400;
+    color: var(--text-1);
+}
+
+.table-scroll {
+    border: 1px solid rgba(24, 9, 12, 0.1);
+    border-radius: 12px;
+    overflow-x: auto;
+    background: #fff;
+}
+.reservation-table {
+    width: 100%;
+    min-width: 860px;
+    border-collapse: collapse;
+}
+.reservation-table th {
+    background: #fafafa;
+    border-bottom: 1px solid var(--border);
+    padding: 11px 12px;
+    text-align: center;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-3);
+}
+.reservation-table td {
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-2);
+    text-align: center;
+}
+.reservation-table tr:last-child td { border-bottom: none; }
+
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border: 1px solid transparent;
+}
+
+.reservation-table td.status.pending {
+    background: transparent;
+    color: inherit;
+}
+td.status.pending .status-pill { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+td.status.approved .status-pill { background: #ecfdf3; color: #166534; border-color: #bbf7d0; }
+td.status.rejected .status-pill { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+td.status.cancelled .status-pill { background: #f5f3ff; color: #4c1d95; border-color: #ddd6fe; }
+td.status.returned .status-pill { background: #f1f5f9; color: #334155; border-color: #e2e8f0; }
+
+.btn-cancel-res {
+    background: #fff0f0;
+    color: #C40C0C;
+    border: 1px solid #f5c6c6;
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.no-action { color: #c0b5b8; }
+.empty-state { color: var(--text-3); padding: 34px 16px; font-weight: 500; }
+
+.modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(4px);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+}
+.modal-overlay.active { display: flex; }
+.modal-box.confirm-modern {
+    width: 460px;
+    max-width: 92vw;
+    padding: 22px 22px 20px;
+    text-align: center;
+    position: relative;
+    border: 1px solid rgba(0, 0, 0, 0.07);
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.09), 0 1px 4px rgba(0,0,0,0.04);
+}
+.confirm-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: #fff;
+    color: #7a646a;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+.confirm-close:hover {
+    background: #f8f6f6;
+}
+.confirm-icon-wrap {
+    display: flex;
+    justify-content: center;
+    margin: 22px 0 14px;
+}
+.confirm-icon {
+    width: 58px;
+    height: 58px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8e8eb;
+    border: 1px solid rgba(200, 16, 46, 0.2);
+    color: #c8102e;
+}
+.modal-box.confirm-modern h3 {
+    margin: 0 0 10px;
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.95rem;
+    font-weight: 400;
+    color: #18090c;
+    letter-spacing: -0.01em;
+}
+.modal-box.confirm-modern #confirmActionMsg.confirm-body {
+    margin: 0 auto;
+    max-width: 340px;
+    font-size: 1.2rem;
+    font-weight: 400;
+    color: #5a3840;
+    line-height: 1.5;
+    text-align: center;
+}
+.modal-msg {
+    color: #C40C0C;
+    font-size: 0.83rem;
+    padding: 8px 6px 0;
+    margin: 0;
+    min-height: 1.2em;
+}
+.modal-box.confirm-modern .modal-actions.confirm-actions {
+    margin-top: 22px;
+    gap: 12px;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+}
+.confirm-btn-danger,
+.confirm-btn-secondary {
+    width: 100%;
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    border: 1px solid transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+.confirm-btn-danger {
+    background: linear-gradient(135deg, #c8102e 0%, #9b0b22 100%);
+    color: #fff;
+    border-color: #c8102e;
+    box-shadow: 0 8px 18px rgba(155, 11, 34, 0.22);
+}
+.confirm-btn-danger:hover {
+    background: linear-gradient(135deg, #b10e29 0%, #84091d 100%);
+}
+.confirm-btn-secondary {
+    background: #fff;
+    color: #5a3840;
+    border-color: rgba(0, 0, 0, 0.1);
+}
+.confirm-btn-secondary:hover {
+    background: #f8e8eb;
+    border-color: rgba(200, 16, 46, 0.22);
+}
+
+.toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: #1b5e20;
+    color: #fff;
+    padding: 13px 18px;
+    border-radius: 10px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+    z-index: 99999;
+    opacity: 0;
+    transform: translateY(20px);
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+
+@media (max-width: 900px) {
+    main.main { padding: 18px 18px 34px; }
+    .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 640px) {
+    .metrics-grid { grid-template-columns: 1fr; }
+}

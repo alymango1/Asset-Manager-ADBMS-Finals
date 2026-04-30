@@ -1,6 +1,11 @@
 <?php
-include('../database/db.php');
 session_start();
+include('../database/db.php');
+
+// Create CSRF token once per session
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: login.php");
@@ -13,18 +18,26 @@ if (isset($_SESSION['full_name'])) {
     $name = $nameParts[0];
 }
 
+// Build profile initials
+$fullNameRaw = trim(preg_replace('/\s+/', ' ', (string)($_SESSION['full_name'] ?? $name)));
+$parts = $fullNameRaw !== '' ? preg_split('/\s+/', $fullNameRaw) : [];
+$first = $parts[0] ?? '';
+$last  = count($parts) > 1 ? $parts[count($parts) - 1] : '';
+$profileInitials = strtoupper(substr($first, 0, 1) . ($last !== '' ? substr($last, 0, 1) : substr($first, 1, 1)));
+$profileInitials = $profileInitials !== '' ? $profileInitials : 'U';
+
 $today = date('Y-m-d');
 
-// ── Filter inputs (sanitized) ──────────────────────────────────
+// Read filter params
 $filterStatus = isset($_GET['status'])     ? trim($_GET['status'])     : 'pending';
 $filterUser   = isset($_GET['user'])       ? trim(mysqli_real_escape_string($conn, $_GET['user']))   : '';
 $filterDateFrom = isset($_GET['date_from']) ? trim($_GET['date_from']) : '';
 $filterDateTo   = isset($_GET['date_to'])   ? trim($_GET['date_to'])   : '';
 
-$allowedStatuses = ['all', 'pending', 'approved', 'rejected'];
+$allowedStatuses = ['all', 'pending', 'approved', 'rejected', 'cancelled', 'returned'];
 if (!in_array($filterStatus, $allowedStatuses)) $filterStatus = 'pending';
 
-// ── Build WHERE clause ─────────────────────────────────────────
+// Build WHERE conditions
 $whereParts = [];
 
 if ($filterStatus !== 'all') {
@@ -42,7 +55,7 @@ if ($filterDateTo !== '') {
 
 $whereSQL = count($whereParts) ? 'WHERE ' . implode(' AND ', $whereParts) : '';
 
-// ── Pagination ─────────────────────────────────────────────────
+// Pagination setup
 $limit  = 10;
 $page   = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $offset = ($page - 1) * $limit;
@@ -57,12 +70,14 @@ $countResult = mysqli_query($conn, "
 $totalRecords = mysqli_fetch_assoc($countResult)['total'];
 $totalPages   = max(1, ceil($totalRecords / $limit));
 
-// ── Summary counts (always shown regardless of filter) ─────────
-$pendingCount  = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM reservations WHERE status='pending'"))['c'];
-$approvedCount = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM reservations WHERE status='approved'"))['c'];
-$rejectedCount = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM reservations WHERE status='rejected'"))['c'];
+// Status summary counts
+$pendingCount   = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM reservations WHERE status='pending'"))['c'];
+$approvedCount  = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM reservations WHERE status='approved'"))['c'];
+$rejectedCount  = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM reservations WHERE status='rejected'"))['c'];
+$cancelledCount = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM reservations WHERE status='cancelled'"))['c'];
+$returnedCount  = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM reservations WHERE status='returned'"))['c'];
 
-// ── Main query ─────────────────────────────────────────────────
+// Main reservations query
 $query = "
     SELECT
         r.reservation_id,
@@ -85,13 +100,13 @@ $query = "
     LEFT JOIN users rej ON r.rejected_by   = rej.user_id
     $whereSQL
     ORDER BY
-        FIELD(r.status, 'pending', 'approved', 'rejected'),
+        FIELD(r.status, 'pending', 'approved', 'rejected', 'cancelled', 'returned'),
         r.reserved_date ASC
     LIMIT $limit OFFSET $offset
 ";
 $result = mysqli_query($conn, $query);
 
-// ── Helper: build pagination URL ──────────────────────────────
+// Build pagination URL
 function pageUrl(int $p): string {
     $params = $_GET;
     $params['page'] = $p;
@@ -105,263 +120,177 @@ function pageUrl(int $p): string {
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Funnel+Sans:ital,wght@0,300..800;1,300..800&family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&family=Mona+Sans:ital,wght@0,200..900;1,200..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/style.css">
-    <style>
-        /* ── Status tab bar ── */
-        .tab-bar {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-        .tab-btn {
-            padding: 7px 18px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            border: 2px solid transparent;
-            cursor: pointer;
-            text-decoration: none;
-            transition: all .15s;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: #f1f1f4;
-            color: #555;
-        }
-        .tab-btn:hover { background: #e2e2ea; color: #222; }
-        .tab-btn.active-all      { background: #1a1a2e; color: #fff; border-color: #1a1a2e; }
-        .tab-btn.active-pending  { background: #fff3cd; color: #856404; border-color: #ffc107; }
-        .tab-btn.active-approved { background: #d4edda; color: #155724; border-color: #28a745; }
-        .tab-btn.active-rejected { background: #f8d7da; color: #721c24; border-color: #dc3545; }
-        .tab-badge {
-            background: rgba(0,0,0,.12);
-            border-radius: 10px;
-            padding: 1px 7px;
-            font-size: 0.78rem;
-        }
+    <link rel="stylesheet" href="../css/admin/style.css">
+    <link rel="stylesheet" href="../css/admin/sidebar.css">
+    <link rel="stylesheet" href="../css/admin/reservation.css">
+    <link rel="stylesheet" href="../css/admin/modal.css">
 
-        /* ── Filter bar ── */
-        .filter-bar {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            align-items: flex-end;
-            margin-bottom: 18px;
-            background: #f7f7f9;
-            border: 1px solid #ebebeb;
-            border-radius: 10px;
-            padding: 14px 16px;
-        }
-        .filter-bar .fg {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            flex: 1;
-            min-width: 140px;
-        }
-        .filter-bar label {
-            font-size: 0.72rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: .05em;
-            color: #999;
-        }
-        .filter-bar input,
-        .filter-bar select {
-            padding: 8px 10px;
-            border: 1px solid #ddd;
-            border-radius: 7px;
-            font-size: 0.9rem;
-            background: #fff;
-            outline: none;
-        }
-        .filter-bar input:focus,
-        .filter-bar select:focus { border-color: #c0392b; }
-        .filter-actions {
-            display: flex;
-            gap: 8px;
-            align-items: flex-end;
-        }
-        .btn-filter {
-            padding: 8px 18px;
-            background: #c0392b;
-            color: #fff;
-            border: none;
-            border-radius: 7px;
-            font-size: 0.88rem;
-            font-weight: 600;
-            cursor: pointer;
-        }
-        .btn-filter:hover { background: #a93226; }
-        .btn-clear {
-            padding: 8px 14px;
-            background: #eee;
-            color: #555;
-            border: none;
-            border-radius: 7px;
-            font-size: 0.88rem;
-            font-weight: 600;
-            cursor: pointer;
-            text-decoration: none;
-        }
-        .btn-clear:hover { background: #ddd; }
-
-        /* ── Result meta ── */
-        .result-meta {
-            font-size: 0.84rem;
-            color: #888;
-            margin-bottom: 10px;
-        }
-        .result-meta b { color: #333; }
-
-        /* ── Actions cell ── */
-        td.actions { white-space: nowrap; }
-
-        /* ── Past-date warning badge on table ── */
-        .past-badge {
-            display: inline-block;
-            font-size: 0.7rem;
-            background: #f8d7da;
-            color: #721c24;
-            border-radius: 4px;
-            padding: 1px 6px;
-            margin-left: 4px;
-            vertical-align: middle;
-            font-weight: 600;
-        }
-
-        /* ── Details cell ── */
-        .detail-cell { font-size: 0.82rem; color: #555; line-height: 1.5; }
-        .detail-cell b { color: #333; }
-        .reason { font-style: italic; color: #888; }
-
-        /* ── Pagination ── */
-        .pagination { display:flex; gap:6px; margin-top:16px; flex-wrap:wrap; }
-        .pagination a {
-            padding: 6px 12px;
-            border-radius: 6px;
-            border: 1px solid #ddd;
-            font-size: 0.85rem;
-            color: #333;
-            text-decoration: none;
-            background: #fff;
-        }
-        .pagination a:hover { background: #f4f4f4; }
-        .pagination a.active { background: #c0392b; color: #fff; border-color: #c0392b; }
-        .pagination a.disabled { color: #bbb; pointer-events: none; }
-
-        /* ── Empty state ── */
-        .empty-state {
-            text-align: center;
-            padding: 48px 20px;
-            color: #aaa;
-        }
-        .empty-state svg { margin-bottom: 12px; opacity: .4; }
-        .empty-state p { font-size: 0.95rem; }
-    </style>
 </head>
 <body>
 
 <?php include('sidebar.php'); ?>
 
-<div class="header">
-    <h1>Reservations</h1>
-    <div class="header-right">
-        <button class="profile_btn" id="profileBtn">
-            <svg xmlns="http://www.w3.org/2000/svg" height="34px" viewBox="0 -960 960 960" width="40px" fill="#FFFFFF"><path d="M226-262q59-42.33 121.33-65.5 62.34-23.17 132.67-23.17 70.33 0 133 23.17T734.67-262q41-49.67 59.83-103.67T813.33-480q0-141-96.16-237.17Q621-813.33 480-813.33t-237.17 96.16Q146.67-621 146.67-480q0 60.33 19.16 114.33Q185-311.67 226-262Zm155.83-224.5Q342-526.33 342-584.67q0-58.33 39.83-98.16 39.84-39.84 98.17-39.84t98.17 39.84Q618-643 618-584.67q0 58.34-39.83 98.17-39.84 39.83-98.17 39.83t-98.17-39.83ZM480-80q-82.33 0-155.33-31.5-73-31.5-127.34-85.83Q143-251.67 111.5-324.67T80-480q0-83 31.5-155.67 31.5-72.66 85.83-127Q251.67-817 324.67-848.5T480-880q83 0 155.67 31.5 72.66 31.5 127 85.83 54.33 54.34 85.83 127Q880-563 880-480q0 82.33-31.5 155.33-31.5 73-85.83 127.34-54.34 54.33-127 85.83Q563-80 480-80Zm105-82.5q50.67-15.83 97.67-52.17-47-33.66-98-51.5Q533.67-284 480-284t-104.67 17.83q-51 17.84-98 51.5 47 36.34 97.67 52.17 50.67 15.83 105 15.83t105-15.83Zm-53.67-370.83q20-20 20-51.34 0-31.33-20-51.33T480-656q-31.33 0-51.33 20t-20 51.33q0 31.34 20 51.34 20 20 51.33 20t51.33-20ZM480-584.67Zm0 369.34Z"/></svg>
-        </button>
+<header class="topbar">
+    <div class="topbar-title">
+        <h1>Reservations</h1>
+        <p>Check requests, approve schedules, and see past decisions.</p>
     </div>
-    <div class="dropdown" id="dropdownMenu">
-        <p>Greetings, <?php echo htmlspecialchars($name); ?>!</p>
-        <a href="logout.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#000000"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z"/></svg>Logout</a>
+    <div class="topbar-right">
+        <span class="topbar-date"><?php echo date('l, F j, Y'); ?></span>
+        <div class="profile-wrap">
+            <button class="profile-btn" id="profileBtn">
+                <?php echo htmlspecialchars($profileInitials); ?>
+            </button>
+            <div class="profile-dropdown" id="profileDropdown">
+                <div class="profile-dropdown-header">
+                    <p><?php echo htmlspecialchars($_SESSION['full_name'] ?? $name); ?></p>
+                    <p>Administrator</p>
+                </div>
+                <a href="logout.php" class="danger">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 -960 960 960" fill="currentColor"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z"/></svg>
+                    Sign Out
+                </a>
+            </div>
+        </div>
     </div>
-</div>
+</header>
 
-<script>
-const btn = document.getElementById("profileBtn");
-const menu = document.getElementById("dropdownMenu");
-btn.addEventListener("click", e => { e.stopPropagation(); menu.classList.toggle("active"); });
-document.addEventListener("click", () => menu.classList.remove("active"));
-</script>
+<main class="main">
 
-<div class="main">
+    <section class="res-hero">
+        <div class="res-hero-copy">
+            <p class="eyebrow">Reservation Center</p>
+            <h2>Reservation Manager</h2>
+            <p class="hero-subtitle">Approve or reject requests, add remarks, and filter by status or date.</p>
+        </div>
+        <div class="hero-stats">
+            <div class="hero-stat">
+                <span>Pending</span>
+                <strong><?php echo $pendingCount; ?></strong>
+            </div>
+            <div class="hero-stat">
+                <span>Approved</span>
+                <strong><?php echo $approvedCount; ?></strong>
+            </div>
+            <div class="hero-stat">
+                <span>Rejected</span>
+                <strong><?php echo $rejectedCount; ?></strong>
+            </div>
+            <div class="hero-stat">
+                <span>Returned</span>
+                <strong><?php echo $returnedCount; ?></strong>
+            </div>
+        </div>
+    </section>
+
+    <section class="res-metrics">
+        <article class="metric-card metric-pending">
+            <div class="metric-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 -960 960 960" fill="currentColor"><path d="M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm-40-200h80v-240h-80v240Zm0-320h80v-80h-80v80Z"/></svg>
+            </div>
+            <div class="metric-body"><p>Pending</p><strong><?php echo $pendingCount; ?></strong></div>
+        </article>
+        <article class="metric-card metric-approved">
+            <div class="metric-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 -960 960 960" fill="currentColor"><path d="m424-296 282-282-56-56-226 226-114-114-56 56 170 170Zm56 216q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z"/></svg>
+            </div>
+            <div class="metric-body"><p>Approved</p><strong><?php echo $approvedCount; ?></strong></div>
+        </article>
+        <article class="metric-card metric-rejected">
+            <div class="metric-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 -960 960 960" fill="currentColor"><path d="M480-280q17 0 28.5-11.5T520-320q0-17-11.5-28.5T480-360q-17 0-28.5 11.5T440-320q0 17 11.5 28.5T480-280Zm-40-160h80v-240h-80v240Zm40 360q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z"/></svg>
+            </div>
+            <div class="metric-body"><p>Rejected</p><strong><?php echo $rejectedCount; ?></strong></div>
+        </article>
+        <article class="metric-card metric-returned">
+            <div class="metric-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 -960 960 960" fill="currentColor"><path d="M440-160q-121-15-200.5-105.5T160-480q0-66 26-126t72-106l57 57q-38 34-56.5 79T240-480q0 88 56 151.5T440-257v97Zm80 0v-97q69-8 124.5-71T700-480q0-100-70-170t-170-70h-3l44 44-56 56-140-140 140-140 56 57-44 43h3q134 0 227 93t93 227q0 121-79.5 211.5T520-160Z"/></svg>
+            </div>
+            <div class="metric-body"><p>Returned</p><strong><?php echo $returnedCount; ?></strong></div>
+        </article>
+    </section>
 
     <!-- Flash messages -->
     <?php if (isset($_SESSION['error'])): ?>
-        <div class="message-box" style="background:#f8d7da;color:#721c24;border:1px solid #f5c6cb;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:.9rem;">
+        <div class="res-message error">
             <?php echo htmlspecialchars($_SESSION['error']); unset($_SESSION['error']); ?>
         </div>
     <?php endif; ?>
     <?php if (isset($_SESSION['success'])): ?>
-        <div class="message-box" style="background:#d4edda;color:#155724;border:1px solid #c3e6cb;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:.9rem;">
+        <div class="res-message success">
             <?php echo htmlspecialchars($_SESSION['success']); unset($_SESSION['success']); ?>
         </div>
     <?php endif; ?>
 
-    <div class="table-wrap">
-        <h2>Reservation List</h2>
+    <section class="content-grid">
+        <div class="table-wrap section-card">
+            <div class="section-header">
+                <h2>Reservation List</h2>
 
-        <!-- ── Status tab bar ── -->
-        <?php
-        // Build tab URLs (preserve other filters, reset page)
-        function tabUrl(string $s): string {
-            $p = $_GET; $p['status'] = $s; unset($p['page']); return '?' . http_build_query($p);
-        }
-        ?>
-        <div class="tab-bar">
-            <a href="<?= tabUrl('pending') ?>"
-               class="tab-btn <?= $filterStatus === 'pending'  ? 'active-pending'  : '' ?>">
-               Pending <span class="tab-badge"><?= $pendingCount ?></span>
-            </a>
-            <a href="<?= tabUrl('approved') ?>"
-               class="tab-btn <?= $filterStatus === 'approved' ? 'active-approved' : '' ?>">
-               Approved <span class="tab-badge"><?= $approvedCount ?></span>
-            </a>
-            <a href="<?= tabUrl('rejected') ?>"
-               class="tab-btn <?= $filterStatus === 'rejected' ? 'active-rejected' : '' ?>">
-               Rejected <span class="tab-badge"><?= $rejectedCount ?></span>
-            </a>
-            <a href="<?= tabUrl('all') ?>"
-               class="tab-btn <?= $filterStatus === 'all'      ? 'active-all'      : '' ?>">
-               All History
-            </a>
-        </div>
+                <!-- Status tabs -->
+                <?php
+                // Build status tab URLs
+                function tabUrl(string $s): string {
+                    $p = $_GET; $p['status'] = $s; unset($p['page']); return '?' . http_build_query($p);
+                }
+                ?>
+                <div class="tab-bar">
+                    <a href="<?= tabUrl('pending') ?>"
+                       class="tab-btn <?= $filterStatus === 'pending'  ? 'active-pending'  : '' ?>">
+                        Pending <span class="tab-badge"><?= $pendingCount ?></span>
+                    </a>
+                    <a href="<?= tabUrl('approved') ?>"
+                       class="tab-btn <?= $filterStatus === 'approved' ? 'active-approved' : '' ?>">
+                        Approved <span class="tab-badge"><?= $approvedCount ?></span>
+                    </a>
+                    <a href="<?= tabUrl('rejected') ?>"
+                       class="tab-btn <?= $filterStatus === 'rejected' ? 'active-rejected' : '' ?>">
+                        Rejected <span class="tab-badge"><?= $rejectedCount ?></span>
+                    </a>
+                    <a href="<?= tabUrl('cancelled') ?>"
+                       class="tab-btn <?= $filterStatus === 'cancelled' ? 'active-cancelled' : '' ?>">
+                        Cancelled <span class="tab-badge"><?= $cancelledCount ?></span>
+                    </a>
+                    <a href="<?= tabUrl('returned') ?>"
+                       class="tab-btn <?= $filterStatus === 'returned' ? 'active-returned' : '' ?>">
+                        Returned <span class="tab-badge"><?= $returnedCount ?></span>
+                    </a>
+                    <a href="<?= tabUrl('all') ?>"
+                       class="tab-btn <?= $filterStatus === 'all' ? 'active-all' : '' ?>">
+                        All History
+                    </a>
+                </div>
 
-        <!-- ── Search / filter bar ── -->
-        <form method="GET" action="" id="filterForm">
-            <input type="hidden" name="status" value="<?= htmlspecialchars($filterStatus) ?>">
-            <div class="filter-bar">
-                <div class="fg">
-                    <label>Search User</label>
-                    <input type="text" name="user" placeholder="Username or full name"
-                           value="<?= htmlspecialchars($filterUser) ?>">
-                </div>
-                <div class="fg">
-                    <label>Date From</label>
-                    <input type="date" name="date_from"
-                           value="<?= htmlspecialchars($filterDateFrom) ?>">
-                </div>
-                <div class="fg">
-                    <label>Date To</label>
-                    <input type="date" name="date_to"
-                           value="<?= htmlspecialchars($filterDateTo) ?>">
-                </div>
-                <div class="filter-actions">
-                    <button type="submit" class="btn-filter">Filter</button>
-                    <a href="?status=<?= htmlspecialchars($filterStatus) ?>" class="btn-clear">Clear</a>
+                <!-- Search filters -->
+                <div class="filter-wrap">
+                    <form method="GET" action="" id="filterForm" class="filter-bar">
+                        <input type="hidden" name="status" value="<?= htmlspecialchars($filterStatus) ?>">
+                        <div class="fg fg-search">
+                            <label>Search User</label>
+                            <input type="text" name="user" placeholder="Username or full name"
+                                   value="<?= htmlspecialchars($filterUser) ?>">
+                        </div>
+                        <div class="fg">
+                            <label>Date From</label>
+                            <input type="date" name="date_from" value="<?= htmlspecialchars($filterDateFrom) ?>">
+                        </div>
+                        <div class="fg">
+                            <label>Date To</label>
+                            <input type="date" name="date_to" value="<?= htmlspecialchars($filterDateTo) ?>">
+                        </div>
+                        <button type="submit" class="btn-filter">Filter</button>
+                        <a href="?status=<?= htmlspecialchars($filterStatus) ?>" class="btn-clear">Clear</a>
+                    </form>
+                    <p class="result-meta">
+                        Showing <strong><?= min($offset + 1, $totalRecords) ?>–<?= min($offset + $limit, $totalRecords) ?></strong>
+                        of <strong><?= $totalRecords ?></strong> reservation<?= $totalRecords !== 1 ? 's' : '' ?>
+                    </p>
                 </div>
             </div>
-        </form>
 
-        <!-- Result meta -->
-        <p class="result-meta">
-            Showing <b><?= min($offset + 1, $totalRecords) ?>–<?= min($offset + $limit, $totalRecords) ?></b>
-            of <b><?= $totalRecords ?></b> reservation<?= $totalRecords !== 1 ? 's' : '' ?>
-        </p>
-
-        <!-- ── Table ── -->
-        <table class="transaction_table" width="100%">
+            <!-- Reservations table -->
+            <div class="table-scroll">
+            <table class="transaction_table reservation" width="100%">
             <tr>
                 <th>ID</th>
                 <th>Equipment</th>
@@ -399,7 +328,7 @@ document.addEventListener("click", () => menu.classList.remove("active"));
                     <?php endif; ?>
                 </td>
                 <td class="status <?= strtolower(str_replace(' ', '-', $row['status'])) ?>">
-                    <?= strtoupper($row['status']) ?>
+                    <span class="status-pill"><?= strtoupper($row['status']) ?></span>
                 </td>
 
                 <?php if ($filterStatus !== 'pending'): ?>
@@ -422,9 +351,11 @@ document.addEventListener("click", () => menu.classList.remove("active"));
                 <?php if ($filterStatus === 'pending' || $filterStatus === 'all'): ?>
                 <td class="actions">
                     <?php if ($row['status'] === 'pending'): ?>
-                        <a class="btn-approve"
-                           href="../admin/approve.php?id=<?= $row['reservation_id'] ?>"
-                           onclick="return confirm('Approve this reservation?')">Approve</a>
+                        <form method="POST" action="../admin/approve.php" style="display:inline;" class="approve-reservation-form">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                            <input type="hidden" name="id" value="<?= $row['reservation_id'] ?>">
+                            <button type="button" class="btn-approve" onclick="openApproveReservationModal(this.form)">Approve</button>
+                        </form>
                         <button class="btn-reject"
                                 onclick="openRejectModal(<?= $row['reservation_id'] ?>)">Reject</button>
                     <?php else: ?>
@@ -446,8 +377,9 @@ document.addEventListener("click", () => menu.classList.remove("active"));
             </tr>
             <?php endif; ?>
         </table>
+        </div>
 
-        <!-- ── Pagination ── -->
+        <!-- Pagination -->
         <?php if ($totalPages > 1): ?>
         <div class="pagination">
             <a href="<?= pageUrl(1) ?>" class="<?= $page === 1 ? 'disabled' : '' ?>">&laquo; First</a>
@@ -468,41 +400,30 @@ document.addEventListener("click", () => menu.classList.remove("active"));
         </div>
         <?php endif; ?>
 
-    </div><!-- /.table-wrap -->
+        </div><!-- /.table-wrap -->
+    </section>
 
-    <!-- ── Guide card ── -->
-    <br>
-    <div class="table-wrap intro-card reservation-guide">
-        <h2>Reservation Management Guide</h2>
-        <p class="intro-text">Review, approve, or reject equipment reservation requests. Use the tabs to browse history and the filters to narrow down by user or date range.</p>
-        <div class="intro-grid">
-            <div class="intro-item info">
-                <h3>Pending Requests</h3>
-                <p>All requests awaiting your decision. Reservations for <b>past dates</b> are flagged with a PAST badge.</p>
-            </div>
-            <div class="intro-item success">
-                <h3>Approve Reservation</h3>
-                <p>Click <b>Approve</b> if the equipment is available and the request is valid.</p>
-            </div>
-            <div class="intro-item danger">
-                <h3>Reject Reservation</h3>
-                <p>Reject invalid requests. A reason is required and will be visible in history.</p>
-            </div>
-            <div class="intro-item warning">
-                <h3>History Tabs</h3>
-                <p>Use <b>Approved</b>, <b>Rejected</b>, or <b>All History</b> tabs to review past decisions.</p>
-            </div>
-        </div>
-    </div>
+</main>
 
-</div><!-- /.main -->
+<script>
+const profileBtn = document.getElementById('profileBtn');
+const profileDropdown = document.getElementById('profileDropdown');
+profileBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    profileDropdown.classList.toggle('open');
+});
+document.addEventListener('click', () => {
+    profileDropdown.classList.remove('open');
+});
+</script>
 
-<!-- ── Reject Modal ── -->
+<!-- Reject modal -->
 <div class="modal-overlay" id="rejectModal">
     <div class="modal-box">
         <h3>Reject Reservation</h3>
         <p>Please provide a reason for rejecting this reservation request.</p>
         <form method="POST" action="../admin/reject.php" id="rejectForm">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
             <input type="hidden" name="id" id="rejectId">
             <textarea name="remarks" id="rejectRemarks" placeholder="Enter reason here..." required></textarea>
             <div class="modal-actions">
@@ -513,7 +434,71 @@ document.addEventListener("click", () => menu.classList.remove("active"));
     </div>
 </div>
 
+<div class="modal-overlay" id="approveReservationModal">
+    <div class="modal-box confirm-modern">
+        <button type="button" class="confirm-close" onclick="closeApproveReservationModal()" aria-label="Close">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 -960 960 960" fill="currentColor"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/></svg>
+        </button>
+        <div class="confirm-icon-wrap">
+            <span class="confirm-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 -960 960 960" fill="currentColor"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg>
+            </span>
+        </div>
+        <h3>Are you sure?</h3>
+        <p class="confirm-body">Approve this reservation request now?</p>
+        <div class="modal-actions confirm-actions">
+            <button type="button" class="confirm-btn-danger" id="approveReservationConfirmBtn">Approve Reservation</button>
+            <button type="button" class="confirm-btn-secondary" onclick="closeApproveReservationModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="noticeModal">
+    <div class="modal-box confirm-modern">
+        <button type="button" class="confirm-close" onclick="closeNoticeModal()" aria-label="Close">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 -960 960 960" fill="currentColor"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/></svg>
+        </button>
+        <div class="confirm-icon-wrap">
+            <span class="confirm-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 -960 960 960" fill="currentColor"><path d="M480-280q17 0 28.5-11.5T520-320q0-17-11.5-28.5T480-360q-17 0-28.5 11.5T440-320q0 17 11.5 28.5T480-280Zm-40-160h80v-240h-80v240Z"/></svg>
+            </span>
+        </div>
+        <h3>Please check this</h3>
+        <p id="noticeModalMessage" class="confirm-body">Please review your input.</p>
+        <div class="modal-actions confirm-actions">
+            <button type="button" class="confirm-btn-secondary" onclick="closeNoticeModal()">Close</button>
+        </div>
+    </div>
+</div>
+
 <script>
+let _approveReservationForm = null;
+
+function openApproveReservationModal(formEl) {
+    _approveReservationForm = formEl;
+    document.getElementById('approveReservationModal').classList.add('active');
+}
+function closeApproveReservationModal() {
+    document.getElementById('approveReservationModal').classList.remove('active');
+    _approveReservationForm = null;
+}
+function openNoticeModal(message) {
+    document.getElementById('noticeModalMessage').textContent = message;
+    document.getElementById('noticeModal').classList.add('active');
+}
+function closeNoticeModal() {
+    document.getElementById('noticeModal').classList.remove('active');
+}
+document.getElementById('approveReservationConfirmBtn').addEventListener('click', function() {
+    if (_approveReservationForm) _approveReservationForm.submit();
+});
+document.getElementById('approveReservationModal').addEventListener('click', function(e) {
+    if (e.target === this) closeApproveReservationModal();
+});
+document.getElementById('noticeModal').addEventListener('click', function(e) {
+    if (e.target === this) closeNoticeModal();
+});
+
 function openRejectModal(id) {
     document.getElementById('rejectId').value = id;
     document.getElementById('rejectRemarks').value = '';
@@ -526,14 +511,26 @@ document.getElementById('rejectModal').addEventListener('click', function(e) {
     if (e.target === this) closeRejectModal();
 });
 
-// ── Date-range validation in filter form ──
+// Validate date range
 document.getElementById('filterForm').addEventListener('submit', function(e) {
     const from = this.date_from.value;
     const to   = this.date_to.value;
     if (from && to && from > to) {
         e.preventDefault();
-        alert('"Date From" cannot be later than "Date To".');
+        openNoticeModal('"Date From" cannot be later than "Date To".');
     }
+});
+
+// Open native date picker on click/focus
+document.querySelectorAll('#filterForm input[type="date"]').forEach((input) => {
+    const openPicker = () => {
+        if (typeof input.showPicker === 'function') {
+            try { input.showPicker(); } catch (e) {}
+        }
+    };
+
+    input.addEventListener('click', openPicker);
+    input.addEventListener('focus', openPicker);
 });
 </script>
 

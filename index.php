@@ -1,105 +1,136 @@
-<?php
-session_start();
-
-// Redirect already-logged-in users to their portal
-if (isset($_SESSION['user_id'])) {
-    if ($_SESSION['role'] === 'admin') {
-        header("Location: admin/dashboard.php");
-    } else {
-        header("Location: faculty/dashboard.php");
-    }
-    exit();
-}
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Asset Manager - Select Portal</title>
-    <link rel="icon" href="img/favicon-96.png" type="image/png">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300..800&display=swap" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Open Sans', sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .landing-wrap {
-            text-align: center;
-            color: #fff;
-            padding: 40px 20px;
-        }
-        .logo-row {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 16px;
-            margin-bottom: 12px;
-        }
-        .logo-row img { width: 64px; height: 64px; object-fit: contain; }
-        .logo-row h1 { font-size: 2rem; font-weight: 700; }
-        .subtitle { color: rgba(255,255,255,0.65); margin-bottom: 48px; font-size: 1rem; }
-        .portals {
-            display: flex;
-            gap: 24px;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-        .portal-card {
-            background: rgba(255,255,255,0.07);
-            border: 1px solid rgba(255,255,255,0.15);
-            border-radius: 16px;
-            padding: 40px 48px;
-            text-decoration: none;
-            color: #fff;
-            transition: all 0.2s;
-            min-width: 220px;
-            backdrop-filter: blur(10px);
-        }
-        .portal-card:hover {
-            background: rgba(255,255,255,0.14);
-            transform: translateY(-4px);
-            box-shadow: 0 12px 40px rgba(0,0,0,0.3);
-        }
-        .portal-card svg { margin-bottom: 16px; }
-        .portal-card h2 { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
-        .portal-card p { font-size: 0.85rem; color: rgba(255,255,255,0.6); }
-        .portal-card.admin { border-color: rgba(220,53,69,0.5); }
-        .portal-card.admin:hover { border-color: #dc3545; background: rgba(220,53,69,0.15); }
-        .portal-card.faculty { border-color: rgba(40,167,69,0.5); }
-        .portal-card.faculty:hover { border-color: #28a745; background: rgba(40,167,69,0.15); }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Asset Manager — Batangas State University</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="index.css">
 </head>
 <body>
-<div class="landing-wrap">
-    <div class="logo-row">
-        <img src="img/bsu.png" alt="BSU Logo">
-        <h1>Asset Manager</h1>
-    </div>
-    <p class="subtitle">Select your portal to continue</p>
-    <div class="portals">
+
+  <div class="bg-canvas"></div>
+  <div class="bg-grid"></div>
+  <div class="bg-texture"></div>
+  <div class="bg-orb-1"></div>
+  <div class="bg-orb-2"></div>
+  <div class="deco-line"></div>
+
+  <div class="page">
+
+    <!-- Header -->
+    <header>
+      <div class="brand">
+        <img src="img/bsu.png" alt="BSU Logo" class="brand-logo">
+        <div class="brand-text">
+          <div class="brand-name">Batangas State University</div>
+          <div class="brand-sub">The National Engineering University</div>
+        </div>
+      </div>
+      <div class="header-badge">
+        <span class="header-badge-dot"></span>
+        System Online
+      </div>
+    </header>
+
+    <!-- Hero -->
+    <main class="hero">
+      <div class="hero-eyebrow">Asset Manager System</div>
+
+      <div class="hero-title"><em>Leading Innovations, Transforming Lives, Building the Nation</em></div>
+      <div class="hero-title-line2">Asset Manager</div>
+
+      <div class="hero-divider"></div>
+
+      <p class="hero-desc">
+        A control system for Batangas State University's equipment inventory, reservations, and resource allocation — built for administrators and faculty.
+      </p>
+
+      <!-- Portal cards -->
+      <div class="portals">
+
+        <!-- Admin -->
         <a href="admin/login.php" class="portal-card admin">
-            <svg xmlns="http://www.w3.org/2000/svg" height="48px" viewBox="0 -960 960 960" width="48px" fill="#dc3545">
+          <div class="card-top">
+            <div class="card-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 -960 960 960" fill="#9b1c1c">
                 <path d="M480-80q-140-35-230-162.5T160-522v-238l320-120 320 120v238q0 152-90 279.5T480-80Z"/>
-            </svg>
-            <h2>Admin Portal</h2>
-            <p>Manage equipment &amp; users</p>
+              </svg>
+            </div>
+            <div class="card-arrow">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M2 10L10 2M10 2H4M10 2V8"/>
+              </svg>
+            </div>
+          </div>
+
+          <div class="card-label">BatStateU</div>
+          <div class="card-title">Admin<br>Portal</div>
+          <div class="card-desc">Full system control — manage equipment, users, and review reservation requests.</div>
+
+          <div class="card-divider"></div>
+
+          <div class="card-features">
+            <div class="card-feature"><span class="card-feature-dot"></span>Equipment &amp; inventory control</div>
+            <div class="card-feature"><span class="card-feature-dot"></span>User account management</div>
+            <div class="card-feature"><span class="card-feature-dot"></span>Approve &amp; track reservations</div>
+          </div>
+
+          <div class="card-cta">Sign in as Admin</div>
+          <div class="card-num">01</div>
         </a>
+
+        <!-- Faculty -->
         <a href="faculty/login.php" class="portal-card faculty">
-            <svg xmlns="http://www.w3.org/2000/svg" height="48px" viewBox="0 -960 960 960" width="48px" fill="#28a745">
+          <div class="card-top">
+            <div class="card-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 -960 960 960" fill="#a8843e">
                 <path d="M480-120 200-272v-240L40-600l440-240 440 240v320h-80v-276l-80 44v240L480-120Zm0-332 274-148-274-148-274 148 274 148Zm0 241 200-108v-151L480-360 280-471v151l200 109Zm0-241Zm0 90Zm0 0Z"/>
-            </svg>
-            <h2>Faculty/Staff Portal</h2>
-            <p>Browse &amp; reserve equipment</p>
+              </svg>
+            </div>
+            <div class="card-arrow">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M2 10L10 2M10 2H4M10 2V8"/>
+              </svg>
+            </div>
+          </div>
+
+          <div class="card-label">BatStateU</div>
+          <div class="card-title">Faculty<br>Portal</div>
+          <div class="card-desc">Browse available equipment, submit reservations, and track your active requests.</div>
+
+          <div class="card-divider"></div>
+
+          <div class="card-features">
+            <div class="card-feature"><span class="card-feature-dot"></span>Browse equipment catalog</div>
+            <div class="card-feature"><span class="card-feature-dot"></span>Submit reservation requests</div>
+            <div class="card-feature"><span class="card-feature-dot"></span>Track approval status</div>
+          </div>
+
+          <div class="card-cta">Sign in as Faculty</div>
+          <div class="card-num">02</div>
         </a>
-    </div>
-</div>
+
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer>
+      <div class="footer-left">
+        &copy; 2026 <strong>Batangas State University</strong> — JPLPC Malvar Campus
+      </div>
+      <div class="footer-right">
+        <a href="#" class="footer-link">Help</a>
+        <div class="footer-sep"></div>
+        <a href="#" class="footer-link">Privacy</a>
+        <div class="footer-sep"></div>
+        <a href="#" class="footer-link">About</a>
+      </div>
+    </footer>
+
+  </div>
+
 </body>
 </html>

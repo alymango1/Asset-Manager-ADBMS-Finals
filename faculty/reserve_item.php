@@ -3,13 +3,13 @@
  * reserve_item.php
  *
  * This page is no longer used as a standalone UI.
- * The reservation modal is now handled inline on reservation.php and equipments.php.
+ * The reservation modal is now handled inline on reservation.php.
  *
- * If someone lands here directly (e.g. from a bookmark), redirect them gracefully.
+ * If this page is opened directly (for example from a bookmark), redirect safely.
  */
 session_start();
 
-if (!isset($_SESSION['user_id'])) {
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'staff') {
     header("Location: login.php");
     exit();
 }

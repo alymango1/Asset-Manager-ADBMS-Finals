@@ -1,0 +1,268 @@
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Serif+Display:ital@0;1&display=swap');
+
+
+:root {
+    --sb-bg:      #1A0A0D;
+    --sb-surface: #241014;
+    --sb-hover:   rgba(255,255,255,0.07);
+    --sb-active:  rgba(200,16,46,0.18);
+    --sb-border:  rgba(255,255,255,0.07);
+    --sb-text:    rgba(255,255,255,0.55);
+    --sb-text-hi: #ffffff;
+    --sb-red:     #C8102E;
+    --sb-label:   rgba(255,255,255,0.28);
+    --sb-w:       252px;
+}
+
+.sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: var(--sb-w);
+    background: var(--sb-bg);
+    display: flex;
+    flex-direction: column;
+    z-index: 200;
+    overflow: hidden;
+    font-family: 'DM Sans', sans-serif;
+}
+
+
+.sidebar::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 160px;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+}
+
+
+.sidebar::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--sb-red);
+    z-index: 1;
+}
+
+
+.sb-logo {
+    position: relative;
+    z-index: 2;
+    padding: 22px 20px 18px;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    border-bottom: 1px solid var(--sb-border);
+}
+.sb-logo-img {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+.sb-logo-info { display: flex; flex-direction: column; min-width: 0; }
+.sb-logo-name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    color: var(--sb-text-hi);
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.sb-logo-sub {
+    font-size: 0.68rem;
+    font-family: 'DM Sans', sans-serif;
+    color: var(--sb-label);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-top: 1px;
+}
+
+
+.sb-user {
+    position: relative;
+    z-index: 2;
+    margin: 14px 12px;
+    background: var(--sb-surface);
+    border: 1px solid var(--sb-border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.sb-user-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--sb-red);
+    color: #fff;
+    font-size: 0.88rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.sb-user-info { min-width: 0; flex: 1; }
+.sb-user-tag {
+    font-size: 0.61rem;
+    font-family: 'DM Sans', sans-serif;
+    color: var(--sb-label);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 700;
+}
+.sb-user-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    color: var(--sb-text-hi);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.3;
+}
+.sb-user-role {
+    font-size: 0.7rem;
+    font-family: 'DM Sans', sans-serif;
+    color: var(--sb-text);
+}
+
+
+.sb-section-label {
+    position: relative;
+    z-index: 2;
+    font-size: 0.63rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--sb-label);
+    padding: 14px 20px 4px;
+    font-weight: 700;
+}
+
+
+.sb-nav {
+    position: relative;
+    z-index: 2;
+    flex: 1;
+    padding: 4px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+}
+.sb-nav::-webkit-scrollbar { display: none; }
+
+.sb-nav a {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    color: var(--sb-text);
+    text-decoration: none;
+    font-size: 0.855rem;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 400;
+    transition: background 0.14s, color 0.14s;
+    position: relative;
+}
+.sb-nav a svg { flex-shrink: 0; opacity: 0.7; transition: opacity 0.14s; }
+.sb-nav a:hover { background: var(--sb-hover); color: #fff; }
+.sb-nav a:hover svg { opacity: 1; }
+.sb-nav a.active {
+    background: var(--sb-active);
+    color: #fff;
+    font-weight: 500;
+}
+.sb-nav a.active svg { opacity: 1; }
+.sb-nav a.active::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 20%;
+    height: 60%; width: 3px;
+    background: var(--sb-red);
+    border-radius: 0 3px 3px 0;
+}
+
+.sb-badge {
+    margin-left: auto;
+    background: var(--sb-red);
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 100px;
+    line-height: 1.4;
+}
+
+
+.sb-footer {
+    position: relative;
+    z-index: 2;
+    border-top: 1px solid var(--sb-border);
+    padding: 10px;
+}
+.sb-footer a {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    color: rgba(255,255,255,0.38);
+    text-decoration: none;
+    font-size: 0.82rem;
+    font-family: 'DM Sans', sans-serif;
+    transition: background 0.14s, color 0.14s;
+}
+.sb-footer a:hover { background: var(--sb-hover); color: rgba(255,255,255,0.7); }
+.sb-footer a svg { flex-shrink: 0; }
+
+
+.logout-overlay {
+    display: flex;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 220ms ease, visibility 220ms ease;
+}
+
+.logout-overlay.is-open {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+}
+
+.logout-overlay .logout-modal-card {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+    box-shadow: 0 24px 70px rgba(0,0,0,0.22);
+    transition:
+        transform 340ms cubic-bezier(0.16, 1, 0.3, 1),
+        opacity 220ms ease;
+    will-change: transform, opacity;
+}
+
+.logout-overlay.is-open .logout-modal-card {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .logout-overlay,
+    .logout-overlay .logout-modal-card {
+        transition: none !important;
+        transform: none !important;
+    }
+}

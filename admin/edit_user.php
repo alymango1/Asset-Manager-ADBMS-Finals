@@ -1,8 +1,8 @@
 <?php
-include('../database/db.php');
 session_start();
+include('../database/db.php');
 
-if (!isset($_SESSION['user_id'])) {
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: login.php");
     exit();
 }
@@ -13,7 +13,7 @@ if (isset($_SESSION['full_name'])) {
     $name = $nameParts[0];
 }
 
-// Must have a valid ID
+// Require user ID
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     header("Location: users.php");
     exit();
@@ -21,7 +21,7 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
 
 $id = (int) $_GET['id'];
 
-// Fetch current user data
+// Load user
 $fetchQuery = mysqli_query($conn, "SELECT * FROM users WHERE user_id = $id");
 if (!$fetchQuery || mysqli_num_rows($fetchQuery) === 0) {
     header("Location: users.php");
@@ -33,10 +33,21 @@ $message = "";
 $messageType = "";
 
 if (isset($_POST['save'])) {
-    $full_name = trim(mysqli_real_escape_string($conn, $_POST['full_name']));
-    $username  = trim(mysqli_real_escape_string($conn, $_POST['username']));
-    $role      = trim(mysqli_real_escape_string($conn, $_POST['role']));
-    $new_password = trim($_POST['password']); // may be blank = no change
+
+    // CSRF check
+    if (
+        empty($_SESSION['csrf_token']) ||
+        !isset($_POST['csrf_token']) ||
+        !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])
+    ) {
+        $message     = "Invalid request. Please try again.";
+        $messageType = "error";
+    } else {
+
+    $full_name    = trim(mysqli_real_escape_string($conn, $_POST['full_name']));
+    $username     = trim(mysqli_real_escape_string($conn, $_POST['username']));
+    $role         = trim($_POST['role']);
+    $new_password = trim($_POST['password']); // blank = no change
 
     $allowed_roles = ['admin', 'staff'];
 
@@ -46,48 +57,56 @@ if (isset($_POST['save'])) {
     } elseif (empty($username)) {
         $message = "Username cannot be empty.";
         $messageType = "error";
-    } elseif (!in_array($role, $allowed_roles)) {
+    } elseif (!in_array($role, $allowed_roles, true)) {
         $message = "Invalid role selected.";
         $messageType = "error";
     } else {
-        // Check if the username is taken by a DIFFERENT user
-        $checkQuery = mysqli_query($conn,
-            "SELECT user_id FROM users WHERE username = '$username' AND user_id != $id"
+        // Check duplicate username
+        $checkStmt = mysqli_prepare($conn,
+            "SELECT user_id FROM users WHERE username = ? AND user_id != ?"
         );
-        if (mysqli_num_rows($checkQuery) > 0) {
+        mysqli_stmt_bind_param($checkStmt, 'si', $username, $id);
+        mysqli_stmt_execute($checkStmt);
+        mysqli_stmt_store_result($checkStmt);
+
+        if (mysqli_stmt_num_rows($checkStmt) > 0) {
             $message = "That username is already taken by another account.";
             $messageType = "error";
         } else {
-            // Build update — only change password if a new one was typed
+            // Hash password
             if ($new_password !== '') {
-                $escaped_password = mysqli_real_escape_string($conn, $new_password);
-                $sql = "UPDATE users
-                        SET full_name = '$full_name',
-                            username  = '$username',
-                            password  = '$escaped_password',
-                            roles     = '$role'
-                        WHERE user_id = $id";
+                $hashed_password = password_hash($new_password, PASSWORD_BCRYPT);
+                $stmt = mysqli_prepare($conn,
+                    "UPDATE users SET full_name = ?, username = ?, password = ?, roles = ? WHERE user_id = ?"
+                );
+                mysqli_stmt_bind_param($stmt, 'ssssi', $full_name, $username, $hashed_password, $role, $id);
             } else {
-                $sql = "UPDATE users
-                        SET full_name = '$full_name',
-                            username  = '$username',
-                            roles     = '$role'
-                        WHERE user_id = $id";
+                $stmt = mysqli_prepare($conn,
+                    "UPDATE users SET full_name = ?, username = ?, roles = ? WHERE user_id = ?"
+                );
+                mysqli_stmt_bind_param($stmt, 'sssi', $full_name, $username, $role, $id);
             }
 
-            if (mysqli_query($conn, $sql)) {
-                // Refresh local data
+            if (mysqli_stmt_execute($stmt)) {
+                mysqli_stmt_close($stmt);
+                // Reload user data
                 $user['full_name'] = $full_name;
                 $user['username']  = $username;
                 $user['roles']     = $role;
                 $message     = "User updated successfully!";
                 $messageType = "success";
+                // Refresh token
+                $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
             } else {
-                $message     = "Error: " . mysqli_error($conn);
+                $message     = "Error: " . mysqli_stmt_error($stmt);
                 $messageType = "error";
+                mysqli_stmt_close($stmt);
             }
         }
+        mysqli_stmt_close($checkStmt);
     }
+
+    } // end CSRF else
 }
 ?>
 
@@ -98,7 +117,8 @@ if (isset($_POST['save'])) {
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Funnel+Sans:ital,wght@0,300..800;1,300..800&family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&family=Mona+Sans:ital,wght@0,200..900;1,200..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/admin/style.css">
+    <link rel="stylesheet" href="../css/admin/edit_user.css">
     <link rel="icon" href="../img/favicon-96.png" type="image/png">
 </head>
 
@@ -115,7 +135,7 @@ if (isset($_POST['save'])) {
         </button>
     </div>
 
-    <!-- DROPDOWN -->
+    <!-- Dropdown -->
     <div class="dropdown" id="dropdownMenu">
         <p>Greetings, <?php echo htmlspecialchars($name); ?>!</p>
         <a href="logout.php">
@@ -151,12 +171,12 @@ document.addEventListener("click", function() {
         <p class="subtitle">Update account details or change the user's role.</p>
 
         <?php if ($message !== ""): ?>
-            <div class="message-box <?php echo $messageType; ?>">
+            <div class="message-box <?php echo htmlspecialchars($messageType ?? ''); ?>">
                 <?php echo htmlspecialchars($message); ?>
             </div>
         <?php endif; ?>
 
-        <!-- Read-only info strip -->
+        <!-- User info -->
         <div class="edit-info-strip">
             <div class="edit-info-item">
                 <span class="edit-info-label">User ID</span>
@@ -171,6 +191,8 @@ document.addEventListener("click", function() {
         </div>
 
         <form method="POST" class="form-grid">
+            <!-- CSRF field -->
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
 
             <div class="input-group">
                 <label>Full Name</label>
@@ -250,88 +272,7 @@ function togglePassword() {
 }
 </script>
 
-<style>
-.message-box.success {
-    background: #d4edda;
-    color: #155724;
-    border: 1px solid #c3e6cb;
-    padding: 12px 16px;
-    border-radius: 8px;
-    margin-bottom: 18px;
-    font-size: 0.9rem;
-}
-.message-box.error {
-    background: #f8d7da;
-    color: #721c24;
-    border: 1px solid #f5c6cb;
-    padding: 12px 16px;
-    border-radius: 8px;
-    margin-bottom: 18px;
-    font-size: 0.9rem;
-}
-.edit-info-strip {
-    display: flex;
-    gap: 24px;
-    background: #f7f7f9;
-    border: 1px solid #ebebeb;
-    border-radius: 10px;
-    padding: 14px 18px;
-    margin-bottom: 24px;
-    flex-wrap: wrap;
-}
-.edit-info-item {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-.edit-info-label {
-    font-size: 0.72rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: #999;
-}
-.edit-info-value {
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: #1a1a2e;
-}
-.role-badge {
-    display: inline-block;
-    font-size: 0.75rem;
-    font-weight: 700;
-    padding: 3px 10px;
-    border-radius: 20px;
-    letter-spacing: 0.04em;
-}
-.role-badge.admin { background: #e8e0ff; color: #4a2ec9; }
-.role-badge.staff { background: #d1ecf1; color: #0c5460; }
-.label-hint {
-    font-size: 0.78rem;
-    font-weight: 400;
-    color: #aaa;
-    margin-left: 6px;
-}
-.password-wrap {
-    position: relative;
-    display: flex;
-    align-items: center;
-}
-.password-wrap input {
-    flex: 1;
-    padding-right: 40px;
-}
-.toggle-pw {
-    position: absolute;
-    right: 10px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    display: flex;
-    align-items: center;
-}
-</style>
+
 
 </body>
 </html>

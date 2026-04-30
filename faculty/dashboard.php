@@ -1,146 +1,243 @@
 <?php
 session_start();
 include('../database/db.php');
+date_default_timezone_set('Asia/Manila');
 
-if (!isset($_SESSION['user_id'])) {
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'staff') {
     header("Location: login.php");
     exit();
 }
 
-$user_id  = $_SESSION['user_id'];
-$username = $_SESSION['username'];
+$user_id = (int)$_SESSION['user_id'];
 
-// Derive first name for the greeting dropdown
-$name = 'User'; // fallback
+$name = 'User';
 if (isset($_SESSION['full_name'])) {
     $nameParts = explode(' ', trim($_SESSION['full_name']));
     $name = $nameParts[0];
 } elseif (isset($_SESSION['username'])) {
     $name = $_SESSION['username'];
 }
-$pending_q = mysqli_query($conn, "SELECT * FROM reservations WHERE requested_by = '$user_id' AND status = 'pending'");
-$pending_count = mysqli_num_rows($pending_q);
 
-$approved_q = mysqli_query($conn, "SELECT * FROM reservations WHERE requested_by = '$user_id' AND status = 'approved'");
-$approved_count = mysqli_num_rows($approved_q);
+// Display name + initials
+$fullNameRaw = trim(preg_replace('/\s+/', ' ', (string)($_SESSION['full_name'] ?? $name)));
+$firstNameRaw = $fullNameRaw !== '' ? preg_split('/\s+/', $fullNameRaw)[0] : 'User';
+$name = ucfirst(strtolower($firstNameRaw)); // for greeting banner
+$parts = $fullNameRaw !== '' ? preg_split('/\s+/', $fullNameRaw) : [];
+$first = $parts[0] ?? '';
+$last  = count($parts) > 1 ? $parts[count($parts) - 1] : '';
+$profileInitials = strtoupper(substr($first, 0, 1) . ($last !== '' ? substr($last, 0, 1) : substr($first, 1, 1)));
+$profileInitials = $profileInitials !== '' ? $profileInitials : 'U';
 
-$query = "SELECT e.resource_name, r.reserved_date, r.status, r.remarks FROM reservations r LEFT JOIN equipments e ON e.equipment_id = r.equipment_id WHERE requested_by = '$user_id' ORDER BY created_at DESC";
+$pending_q = mysqli_query($conn, "SELECT COUNT(*) AS total FROM reservations WHERE requested_by = $user_id AND status = 'pending'");
+$pending_count = (int)(mysqli_fetch_assoc($pending_q)['total'] ?? 0);
+
+$approved_q = mysqli_query($conn, "SELECT COUNT(*) AS total FROM reservations WHERE requested_by = $user_id AND status = 'approved'");
+$approved_count = (int)(mysqli_fetch_assoc($approved_q)['total'] ?? 0);
+
+$rejected_q = mysqli_query($conn, "SELECT COUNT(*) AS total FROM reservations WHERE requested_by = $user_id AND status = 'rejected'");
+$rejected_count = (int)(mysqli_fetch_assoc($rejected_q)['total'] ?? 0);
+
+$total_q = mysqli_query($conn, "SELECT COUNT(*) AS total FROM reservations WHERE requested_by = $user_id");
+$total_count = (int)(mysqli_fetch_assoc($total_q)['total'] ?? 0);
+
+$query = "
+    SELECT
+        r.reservation_id,
+        e.resource_name,
+        r.reserved_date,
+        r.status,
+        r.remarks
+    FROM reservations r
+    LEFT JOIN equipments e ON e.equipment_id = r.equipment_id
+    WHERE r.requested_by = $user_id
+    ORDER BY r.created_at DESC
+    LIMIT 10
+";
 $result = mysqli_query($conn, $query);
+$reservationRows = mysqli_num_rows($result);
+
+$hour = (int)date('H');
+$greeting = $hour < 12 ? 'Good Morning' : ($hour < 18 ? 'Good Afternoon' : 'Good Evening');
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Faculty Dashboard</title>
-    <link rel="stylesheet" href="../css/style_faculty.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="../css/faculty/style.css">
+    <link rel="stylesheet" href="../css/faculty/dashboard.css">
+    <link rel="stylesheet" href="../css/faculty/sidebar.css">
+    <link rel="stylesheet" href="../css/faculty/modal.css">
 </head>
 <body>
 
-<?php include('sidebar.php');?>
+<?php include('../faculty/sidebar.php'); ?>
 
-<div class="header">
+<header class="topbar">
+    <div class="topbar-title">
         <h1>Dashboard</h1>
-
-        <div class="header-right">
-        <button class="profile_btn" id="profileBtn">
-            <svg xmlns="http://www.w3.org/2000/svg" height="34px" viewBox="0 -960 960 960" width="40px" fill="#FFFFFF"><path d="M226-262q59-42.33 121.33-65.5 62.34-23.17 132.67-23.17 70.33 0 133 23.17T734.67-262q41-49.67 59.83-103.67T813.33-480q0-141-96.16-237.17Q621-813.33 480-813.33t-237.17 96.16Q146.67-621 146.67-480q0 60.33 19.16 114.33Q185-311.67 226-262Zm155.83-224.5Q342-526.33 342-584.67q0-58.33 39.83-98.16 39.84-39.84 98.17-39.84t98.17 39.84Q618-643 618-584.67q0 58.34-39.83 98.17-39.84 39.83-98.17 39.83t-98.17-39.83ZM480-80q-82.33 0-155.33-31.5-73-31.5-127.34-85.83Q143-251.67 111.5-324.67T80-480q0-83 31.5-155.67 31.5-72.66 85.83-127Q251.67-817 324.67-848.5T480-880q83 0 155.67 31.5 72.66 31.5 127 85.83 54.33 54.34 85.83 127Q880-563 880-480q0 82.33-31.5 155.33-31.5 73-85.83 127.34-54.34 54.33-127 85.83Q563-80 480-80Zm105-82.5q50.67-15.83 97.67-52.17-47-33.66-98-51.5Q533.67-284 480-284t-104.67 17.83q-51 17.84-98 51.5 47 36.34 97.67 52.17 50.67 15.83 105 15.83t105-15.83Zm-53.67-370.83q20-20 20-51.34 0-31.33-20-51.33T480-656q-31.33 0-51.33 20t-20 51.33q0 31.34 20 51.34 20 20 51.33 20t51.33-20ZM480-584.67Zm0 369.34Z"/></svg>        
-        </button>
-        </div>
-
-        <!-- DROPDOWN -->
-        <div class="dropdown" id="dropdownMenu">
-            <p>Greetings, <?php echo $name?>!</p>
-            <a href="logout.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#000000"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z"/></svg>Logout</a>
-        </div>
-
+        <p>Overview of your reservation activity</p>
     </div>
-</div>
+    <div class="topbar-right">
+        <span class="topbar-date"><?php echo date('l, F j, Y'); ?></span>
+        <div class="profile-wrap">
+            <button class="profile-btn" id="profileBtn">
+                <?php echo htmlspecialchars($profileInitials); ?>
+            </button>
+            <div class="profile-dropdown" id="profileDropdown">
+                <div class="profile-dropdown-header">
+                    <p><?php echo htmlspecialchars(($_SESSION['full_name'] ?? '') !== '' ? ucwords(strtolower($_SESSION['full_name'])) : $name); ?></p>
+                    <p>Staff</p>
+                </div>
+                <a href="logout.php" class="danger">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 -960 960 960" fill="currentColor"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z"/></svg>
+                    Sign Out
+                </a>
+            </div>
+        </div>
+    </div>
+</header>
+
+<main class="main">
+    <div class="greeting-banner">
+        <div class="greeting-text">
+            <h2><?php echo $greeting; ?>, <span class="name"><?php echo htmlspecialchars($name); ?></span> 👋</h2>
+            <p>Here is your current reservation status.</p>
+        </div>
+        <?php if ($pending_count > 0): ?>
+            <a href="my_reservations.php" class="greeting-tag">
+                ⚡ <?php echo $pending_count; ?> pending reservation<?php echo $pending_count !== 1 ? 's' : ''; ?>
+            </a>
+        <?php else: ?>
+            <span class="greeting-tag">✓ All clear - no pending items</span>
+        <?php endif; ?>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card inuse">
+            <div class="stat-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 -960 960 960" fill="currentColor"><path d="M440-160q-121-15-200.5-105.5T160-480q0-66 26-126t72-106l57 57q-38 34-56.5 79T240-480q0 88 56 151.5T440-257v97Zm80 0v-97q69-8 124.5-71T700-480q0-100-70-170t-170-70h-3l44 44-56 56-140-140 140-140 56 57-44 43h3q134 0 227 93t93 227q0 121-79.5 211.5T520-160Z"/></svg>
+            </div>
+            <div class="stat-value"><?php echo $pending_count; ?></div>
+            <div class="stat-label">Pending Reservations</div>
+        </div>
+        <div class="stat-card available">
+            <div class="stat-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 -960 960 960" fill="currentColor"><path d="m424-296 282-282-56-56-226 226-114-114-56 56 170 170Zm56 216q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z"/></svg>
+            </div>
+            <div class="stat-value"><?php echo $approved_count; ?></div>
+            <div class="stat-label">Approved Reservations</div>
+        </div>
+    </div>
+
+    <div class="content-grid">
+        <div class="section-card">
+            <div class="section-header">
+                <h2>My Reservation History</h2>
+                <a href="my_reservations.php">View all →</a>
+            </div>
+            <table class="res-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Equipment</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                        <th>Remarks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php if ($reservationRows === 0): ?>
+                    <tr class="empty-row"><td colspan="5">No reservation records found.</td></tr>
+                <?php else: ?>
+                    <?php while ($row = mysqli_fetch_assoc($result)): ?>
+                    <tr>
+                        <td style="color:var(--text-3);font-size:0.75rem;">#<?php echo (int)$row['reservation_id']; ?></td>
+                        <td class="equipment-name"><?php echo htmlspecialchars($row['resource_name'] ?? 'N/A'); ?></td>
+                        <td><span class="badge <?php echo strtolower($row['status']); ?>"><?php echo htmlspecialchars(ucfirst($row['status'])); ?></span></td>
+                        <td style="color:var(--text-3);font-size:0.79rem;"><?php echo date('M j, Y', strtotime($row['reserved_date'])); ?></td>
+                        <td><?php echo htmlspecialchars($row['remarks'] ?? 'None'); ?></td>
+                    </tr>
+                    <?php endwhile; ?>
+                <?php endif; ?>
+                </tbody>
+            </table>
+            <?php if ($reservationRows > 0 && $reservationRows < 10): ?>
+            <div class="table-filler">
+                <p>More reservations will appear here.</p>
+                <span>New requests are automatically added as you create them.</span>
+            </div>
+            <?php endif; ?>
+        </div>
+
+        <div class="right-panel">
+            <div class="quick-actions">
+                <h3>Quick Actions</h3>
+                <div class="action-list">
+                    <a href="reservation.php" class="action-item primary">
+                        <div class="action-item-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 -960 960 960" fill="white"><path d="M446.67-120v-326.67H120v-66.66h326.67V-840h66.66v326.67H840v66.66H513.33V-120h-66.66Z"/></svg>
+                        </div>
+                        <div class="action-item-body">
+                            <strong>New Reservation</strong>
+                            <span>Create a reservation request</span>
+                        </div>
+                        <svg class="action-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 -960 960 960" fill="white"><path d="M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z"/></svg>
+                    </a>
+                    <a href="my_reservations.php" class="action-item secondary">
+                        <div class="action-item-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 -960 960 960" fill="var(--red)"><path d="M320-240h320v-80H320v80Zm0-160h320v-80H320v80Zm-80 320q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h400q33 0 56.5 23.5T720-800v640q0 33-23.5 56.5T640-80H240Z"/></svg>
+                        </div>
+                        <div class="action-item-body">
+                            <strong>My Reservations</strong>
+                            <span>Track request status</span>
+                        </div>
+                        <svg class="action-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 -960 960 960" fill="currentColor"><path d="M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z"/></svg>
+                    </a>
+                </div>
+            </div>
+
+            <div class="status-card">
+                <h3>Reservation Status</h3>
+                <?php
+                $total_for_pct = max($total_count, 1);
+                $status_items = [
+                    ['Pending', $pending_count, '#F59E0B'],
+                    ['Approved', $approved_count, '#27AE60'],
+                    ['Rejected', $rejected_count, '#C0392B'],
+                ];
+                foreach ($status_items as $item):
+                    $pct = round(($item[1] / $total_for_pct) * 100);
+                ?>
+                <div class="progress-item">
+                    <span class="progress-label"><?php echo $item[0]; ?></span>
+                    <div class="progress-bar-wrap">
+                        <div class="progress-bar-fill" style="width:<?php echo $pct; ?>%;background:<?php echo $item[2]; ?>;"></div>
+                    </div>
+                    <span class="progress-count"><?php echo $item[1]; ?></span>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </div>
+</main>
 
 <script>
-const btn = document.getElementById("profileBtn");
-const menu = document.getElementById("dropdownMenu");
+const profileBtn = document.getElementById('profileBtn');
+const profileDropdown = document.getElementById('profileDropdown');
 
-btn.addEventListener("click", function (e) {
+profileBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    menu.classList.toggle("active");
+    profileDropdown.classList.toggle('open');
 });
 
-// close when clicking outside
-document.addEventListener("click", function () {
-    menu.classList.remove("active");
+document.addEventListener('click', () => {
+    profileDropdown.classList.remove('open');
 });
 </script>
- 
-<div class="main">
-
-    <h1>Welcome, <?php echo htmlspecialchars($username); ?>!</h1>
-
-    <div class="cards">
-    <div class="card pending">
-        <h3>Pending Resevations:</h3>
-        <p><?php echo $pending_count; ?></p>
-    </div>
-    <div class="card approved">
-        <h3>Approved Reservations</h3>
-        <p><?php echo $approved_count; ?></p>
-    </div>
-</div>
-
-<br>
-
-    <div class="table-wrap">
-        <h2>Quick Actions</h2>  
-    <div class="action-grid">
-    
-        <a class="action-tile primary" href="reservation.php">
-             <span class="icon"><svg xmlns="http://www.w3.org/2000/svg" height="40px" viewBox="0 -960 960 960" width="40px" fill="#75FB4C"><path d="M446.67-120v-326.67H120v-66.66h326.67V-840h66.66v326.67H840v66.66H513.33V-120h-66.66Z"/></svg></span>
-        <div>
-             <h3>Quick New Reservation</h3>
-            <p>Register new inventory item</p>
-        </div>
-        </a>
-
-        <a class="action-tile secondary" href="equipments.php">
-             <span class="icon"><svg xmlns="http://www.w3.org/2000/svg" height="40px" viewBox="0 -960 960 960" width="40px" fill="#75FB4C"><path d="M446.67-120v-326.67H120v-66.66h326.67V-840h66.66v326.67H840v66.66H513.33V-120h-66.66Z"/></svg></span>
-        <div>
-             <h3>View Equipments</h3>
-            <p>View equipments that are currently available</p>
-        </div>
-
-        
-        </a>
-</div>
-</div>
-
-<br>
-    
-    <div class="table-wrap">
-    <h3>My Reservation History</h3>
-    <table class="transaction_table">
-        
-        <thead>
-            <tr>
-                <th>Equipment Name</th>
-                <th>Reserved Date</th>
-                <th>Status</th>
-                <th>Remarks</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php while($row = mysqli_fetch_assoc($result)): ?>
-            <tr>
-                <td><?php echo htmlspecialchars($row['resource_name']); ?></td>
-                <td><?php echo htmlspecialchars($row['reserved_date']); ?></td>
-                <td class="status <?php echo strtolower($row['status']); ?>">
-                    <?php echo htmlspecialchars(ucfirst($row['status'])); ?>
-                </td>
-                <td><?php echo htmlspecialchars($row['remarks'] ?? 'None'); ?></td>
-            </tr>
-            <?php endwhile; ?>
-        </tbody>
-    </table>
-
-            </div>
-            </div>
 </body>
 </html>
