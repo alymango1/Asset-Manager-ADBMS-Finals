@@ -86,10 +86,18 @@ if (isset($_POST['login'])) {
     <div class="bg-glow"></div>
     <div class="bg-scanlines"></div>
 
-    <div class="corner corner-tl"></div>
-    <div class="corner corner-br"></div>
+    <div class="corner corner-tr"></div>
+    <div class="corner corner-bl"></div>
 
     <div class="login-wrapper">
+
+        <div class="login-photo-col">
+            <div class="photo-caption">
+                <div class="photo-caption-label">Campus</div>
+                <div class="photo-caption-rule"></div>
+                <div class="photo-caption-name">Batangas State University JPLPC Malvar</div>
+            </div>
+        </div>
 
         <div class="login-panel">
 
@@ -155,13 +163,7 @@ if (isset($_POST['login'])) {
 
         </div>
 
-        <div class="login-photo-col">
-            <div class="photo-caption">
-                <div class="photo-caption-label">Campus</div>
-                <div class="photo-caption-rule"></div>
-                <div class="photo-caption-name">Batangas State University JPLPC Malvar</div>
-            </div>
-        </div>
+        
 
     </div>
 

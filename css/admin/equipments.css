@@ -819,6 +819,16 @@ body.ae-modal-open { overflow: hidden; }
     white-space: nowrap;
     cursor: pointer;
 }
+.delete-equipment-form {
+    margin: 0;
+}
+.delete-equipment-form .action-item {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    font-family: inherit;
+}
 .action-item svg { flex-shrink: 0; opacity: 0.7; }
 .action-item:hover { background: #f4f4f8; color: #1a1a2e; }
 

@@ -253,7 +253,8 @@ $filterString = count($queryParams) ? '&' . implode('&', $queryParams) : '';
                             <span></span><span></span><span></span>
                         </button>
                         <div class="action-dropdown">
-                            <a class="action-item" href="edit_equipment.php?id=<?php echo $row['equipment_id']; ?>">
+                            <a class="action-item" href="#"
+                               onclick='event.preventDefault(); closeAllMenus(); openEditDetailsModal(<?php echo (int)$row['equipment_id']; ?>, <?php echo json_encode($row["resource_name"]); ?>, <?php echo json_encode($row["categories"]); ?>);'>
                                 <svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M200-200h57l391-391-57-57-391 391v57Zm-80 80v-170l528-527q12-11 26.5-17t30.5-6q16 0 31 6t26 18l55 56q12 11 17.5 26t5.5 30q0 16-5.5 30.5T817-647L290-120H120Zm640-584-56-56 56 56Zm-141 85-28-29 57 57-29-28Z"/></svg>
                                 Edit Details
                             </a>
@@ -268,10 +269,10 @@ $filterString = count($queryParams) ? '&' . implode('&', $queryParams) : '';
                             </a>
                             <?php endif; ?>
                             <div class="action-divider"></div>
-                            <form method="POST" action="delete_equipment.php" style="display:contents;" class="delete-equipment-form">
+                            <form method="POST" action="delete_equipment.php" class="delete-equipment-form">
                                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                 <input type="hidden" name="id" value="<?php echo $row['equipment_id']; ?>">
-                                <button type="button" class="action-item action-delete" style="background:none;border:none;cursor:pointer;width:100%;text-align:left;padding:0;"
+                                <button type="button" class="action-item action-delete"
                                     onclick="openDeleteEquipmentModal(this.form, 'Delete <?php echo addslashes(htmlspecialchars($row['resource_name'])); ?>? This cannot be undone.')">
                                 <svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360ZM280-720v520-520Z"/></svg>
                                 Delete
@@ -365,6 +366,37 @@ $filterString = count($queryParams) ? '&' . implode('&', $queryParams) : '';
         <div class="modal-actions confirm-actions">
             <button type="button" class="confirm-btn-danger" id="confirmDeleteEquipmentBtn">Delete Equipment</button>
             <button type="button" class="confirm-btn-secondary" onclick="closeDeleteEquipmentModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit details modal -->
+<div class="modal-overlay" id="editDetailsModal">
+    <div class="modal-box">
+        <h3>Edit Equipment Details</h3>
+        <div class="modal-info-row">
+            <div class="modal-info-group">
+                <label>Equipment ID</label>
+                <p id="editDetailsEquipmentId">—</p>
+            </div>
+        </div>
+        <div class="input-group" style="margin-bottom: 10px;">
+            <label for="editDetailsResourceName">Resource Name</label>
+            <input type="text" id="editDetailsResourceName" name="resource_name" autocomplete="off" required>
+        </div>
+        <div class="input-group">
+            <label for="editDetailsCategory">Category</label>
+            <select id="editDetailsCategory" name="category" required>
+                <option value="">Select Category</option>
+                <option value="IT Equipment">IT Equipment</option>
+                <option value="Classroom">Classroom</option>
+                <option value="Events Equipment">Events Equipment</option>
+            </select>
+        </div>
+        <p id="editDetailsMsg" style="color:red; font-size:0.85rem; min-height:1.2em; margin-top:8px;"></p>
+        <div class="modal-actions">
+            <button type="button" class="btn-cancel" onclick="closeEditDetailsModal()">Cancel</button>
+            <button type="button" class="btn-confirm-edit" id="confirmEditDetailsBtn" onclick="submitEditDetails()">Save Changes</button>
         </div>
     </div>
 </div>
@@ -692,6 +724,67 @@ function submitQuickReturn() {
             btn.disabled        = false;
             btn.textContent     = 'Confirm Return';
         });
+}
+</script>
+
+<script>
+let _editDetailsId = null;
+function openEditDetailsModal(id, resourceName, category) {
+    _editDetailsId = id;
+    document.getElementById('editDetailsEquipmentId').textContent = `#${id}`;
+    document.getElementById('editDetailsResourceName').value = resourceName || '';
+    document.getElementById('editDetailsCategory').value = category || '';
+    document.getElementById('editDetailsMsg').textContent = '';
+    document.getElementById('confirmEditDetailsBtn').disabled = false;
+    document.getElementById('confirmEditDetailsBtn').textContent = 'Save Changes';
+    document.getElementById('editDetailsModal').classList.add('active');
+}
+function closeEditDetailsModal() {
+    document.getElementById('editDetailsModal').classList.remove('active');
+    _editDetailsId = null;
+}
+document.getElementById('editDetailsModal').addEventListener('click', function(e) {
+    if (e.target === this) closeEditDetailsModal();
+});
+async function submitEditDetails() {
+    const resourceName = document.getElementById('editDetailsResourceName').value.trim();
+    const category = document.getElementById('editDetailsCategory').value;
+    const msgEl = document.getElementById('editDetailsMsg');
+    const btn = document.getElementById('confirmEditDetailsBtn');
+    if (!_editDetailsId) return;
+    if (!resourceName) {
+        msgEl.textContent = 'Resource name cannot be empty.';
+        return;
+    }
+    if (!category) {
+        msgEl.textContent = 'Please select a category.';
+        return;
+    }
+
+    msgEl.textContent = '';
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    try {
+        const form = new FormData();
+        form.append('id', _editDetailsId);
+        form.append('resource_name', resourceName);
+        form.append('category', category);
+        form.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
+        const res = await fetch('update_equipment_details.php', { method: 'POST', body: form });
+        const data = await res.json();
+        if (data && data.success) {
+            closeEditDetailsModal();
+            location.reload();
+            return;
+        }
+        msgEl.textContent = (data && data.message) ? data.message : 'Update failed.';
+    } catch (e) {
+        msgEl.textContent = 'Network error. Please try again.';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save Changes';
+    }
 }
 </script>
 
