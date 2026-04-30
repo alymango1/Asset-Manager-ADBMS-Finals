@@ -244,23 +244,36 @@ Reservation statuses: `pending`, `approved`, `rejected`, `cancelled`, `returned`
 ><img width="1895" height="541" alt="image" src="https://github.com/user-attachments/assets/f5e706f7-9db4-4447-823f-6eee4af6ff3f" /<>
 
 
-><img width="1918" height="826" alt="image" src="https://github.com/user-attachments/assets/e5cdc89f-44a7-49dc-8b32-23f854117826" />
+
 ><img width="1919" height="819" alt="image" src="https://github.com/user-attachments/assets/3047d9a0-e006-4bbd-934d-82f973cf4d37" />
+
+><img width="1918" height="826" alt="image" src="https://github.com/user-attachments/assets/e5cdc89f-44a7-49dc-8b32-23f854117826" />
+
 ><img width="1919" height="839" alt="image" src="https://github.com/user-attachments/assets/e6e77923-3156-4c56-b8bc-8963cb7ce59a" />
+
 ><img width="1917" height="828" alt="image" src="https://github.com/user-attachments/assets/ca010972-828f-44f9-8d48-9dbbab14d6fe" />
+
 ><img width="1919" height="829" alt="image" src="https://github.com/user-attachments/assets/7f4f08c5-91d6-4011-aeb4-3db2b282f99e" />
+
 ><img width="1915" height="827" alt="image" src="https://github.com/user-attachments/assets/852be60d-d42a-4bdd-b344-697659e72333" />
 
+
 ><img width="1919" height="827" alt="image" src="https://github.com/user-attachments/assets/8649ba63-b2f9-4cd4-b807-8f997275e2c7" />
+
 ><img width="1919" height="825" alt="image" src="https://github.com/user-attachments/assets/4c60f0eb-8ed0-47e7-8854-d0fd294c46d9" />
+
 ><img width="1919" height="823" alt="image" src="https://github.com/user-attachments/assets/8c2531ff-b669-49da-9f0d-2d157202dc79" />
 
 ><img width="1919" height="823" alt="image" src="https://github.com/user-attachments/assets/dd427464-2c28-4c10-b3f9-76e0bff77356" />
 
 ><img width="1919" height="826" alt="image" src="https://github.com/user-attachments/assets/88c83b3e-70a8-430d-b25f-319a2bb2767b" />
+
 ><img width="1916" height="822" alt="image" src="https://github.com/user-attachments/assets/c0cc316f-9c54-463c-a7b0-f708b9c67d21" />
+
 ><img width="1919" height="825" alt="image" src="https://github.com/user-attachments/assets/ea66f6dd-3b52-4011-88dc-8bd4d67edc20" />
+
 ><img width="1914" height="825" alt="image" src="https://github.com/user-attachments/assets/1b63f552-2faa-4a1c-bb7e-900938dbe7e2" />
+
 ><img width="1919" height="828" alt="image" src="https://github.com/user-attachments/assets/737437eb-d243-484c-a371-78cf8bd48eb8" />
 
 ---
