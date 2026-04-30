@@ -4,6 +4,8 @@
 
 
 
+
+
 > **ADBMS Finals Project** · JPLPC Malvar Campus
 
 A web-based equipment asset management system built for Batangas State University. It allows administrators to manage the university's equipment inventory and faculty members to browse and reserve equipment for academic use.
