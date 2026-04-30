@@ -246,8 +246,8 @@ Reservation statuses: `pending`, `approved`, `rejected`, `cancelled`, `returned`
 
 ><img width="1918" height="826" alt="image" src="https://github.com/user-attachments/assets/e5cdc89f-44a7-49dc-8b32-23f854117826" />
 ><img width="1919" height="819" alt="image" src="https://github.com/user-attachments/assets/3047d9a0-e006-4bbd-934d-82f973cf4d37" />
-><img width="1917" height="828" alt="image" src="https://github.com/user-attachments/assets/ca010972-828f-44f9-8d48-9dbbab14d6fe" />
 ><img width="1919" height="839" alt="image" src="https://github.com/user-attachments/assets/e6e77923-3156-4c56-b8bc-8963cb7ce59a" />
+><img width="1917" height="828" alt="image" src="https://github.com/user-attachments/assets/ca010972-828f-44f9-8d48-9dbbab14d6fe" />
 ><img width="1919" height="829" alt="image" src="https://github.com/user-attachments/assets/7f4f08c5-91d6-4011-aeb4-3db2b282f99e" />
 ><img width="1915" height="827" alt="image" src="https://github.com/user-attachments/assets/852be60d-d42a-4bdd-b344-697659e72333" />
 
