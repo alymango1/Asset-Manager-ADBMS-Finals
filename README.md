@@ -27,7 +27,6 @@ A web-based equipment asset management system built for Batangas State Universit
 - [Pages & Modules](#pages--modules)
 - [Database](#database)
 - [Screenshots](#screenshots)
-- [Contributors](#contributors)
 
 ---
 
