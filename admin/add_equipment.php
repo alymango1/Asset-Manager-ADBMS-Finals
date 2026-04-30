@@ -1,35 +1,81 @@
 <?php
-include('../database/db.php');
 session_start();
+include('../database/db.php');
+
+// CSRF token
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: login.php");
     exit();
 }
 
+$name = "User";
+if (isset($_SESSION['full_name'])) {
+    $nameParts = explode(" ", trim($_SESSION['full_name']));
+    $name = $nameParts[0];
+}
+
 $message = "";
 
 if (isset($_POST['add'])) {
 
+    // CSRF check
+    if (
+        empty($_SESSION['csrf_token']) ||
+        !isset($_POST['csrf_token']) ||
+        !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])
+    ) {
+        $message = "Invalid request. Please try again.";
+    } else {
+
     $resource_name = mysqli_real_escape_string($conn, $_POST['resource_name']);
-    $category = mysqli_real_escape_string($conn, $_POST['category']);
-    $status = "Available"; // default status
+    $category      = $_POST['category'] ?? '';
+    $status        = "Available"; // Default status
 
-    if (!empty($resource_name) && !empty($category)) {
+    // Validate category
+    $allowed_categories = ['IT Equipment', 'Classroom', 'Events Equipment'];
+    if (!in_array($category, $allowed_categories, true)) {
+        $message = "Invalid category selected.";
+    } elseif (!empty($resource_name) && !empty($category)) {
 
-        $sql = "INSERT INTO equipments (resource_name, categories, status)
-                VALUES ('$resource_name', '$category', '$status')";
+        $stmt = mysqli_prepare($conn,
+            "INSERT INTO equipments (resource_name, categories, status) VALUES (?, ?, 'Available')"
+        );
+        mysqli_stmt_bind_param($stmt, 'ss', $resource_name, $category);
 
-        if (mysqli_query($conn, $sql)) {
+        if (mysqli_stmt_execute($stmt)) {
             $message = "Equipment added successfully!";
         } else {
-            $message = "Error: " . mysqli_error($conn);
+            $message = "Error: " . mysqli_stmt_error($stmt);
         }
+        mysqli_stmt_close($stmt);
 
     } else {
         $message = "Please fill in all fields.";
     }
-}
+    } // End category check
+
+    // Refresh token
+    if (strpos($message, 'successfully') !== false) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+
+    } // End CSRF branch
+
+    // Return JSON for AJAX
+    if (isset($_POST['ajax']) && $_POST['ajax'] === '1') {
+        header('Content-Type: application/json; charset=utf-8');
+        $success = (stripos($message, 'success') !== false);
+        echo json_encode([
+            'success' => $success,
+            'message' => $message
+        ]);
+        exit();
+    }
+
 ?>
 
 <!DOCTYPE html>
@@ -39,7 +85,7 @@ if (isset($_POST['add'])) {
     <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Funnel+Sans:ital,wght@0,300..800;1,300..800&family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&family=Mona+Sans:ital,wght@0,200..900;1,200..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/admin/style.css">
 </head>
 
 <body>
@@ -55,9 +101,9 @@ if (isset($_POST['add'])) {
         </button>
         </div>
 
-        <!-- DROPDOWN -->
+        <!-- Dropdown -->
         <div class="dropdown" id="dropdownMenu">
-            <p>Greetings, <?php echo $name?>!</p>
+            <p>Greetings, <?php echo htmlspecialchars($name ?? ''); ?>!</p>
             <a href="logout.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#000000"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z"/></svg>Logout</a>
         </div>
 
@@ -73,7 +119,7 @@ btn.addEventListener("click", function (e) {
     menu.classList.toggle("active");
 });
 
-// close when clicking outside
+// Close dropdown on outside click
 document.addEventListener("click", function () {
     menu.classList.remove("active");
 });
@@ -90,13 +136,15 @@ document.addEventListener("click", function () {
 
         <?php if ($message != "") { ?>
             <div class="message-box">
-                <?php echo $message; ?>
+                <?php echo htmlspecialchars($message); ?>
             </div>
         <?php } ?>
 
         <form method="POST" class="form-grid">
+            <!-- CSRF field -->
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
 
-            <!-- Resource Name -->
+            <!-- Resource name -->
             <div class="input-group">
                 <label>Resource Name</label>
                 <input type="text" name="resource_name" placeholder="Enter equipment name" required>
@@ -113,7 +161,7 @@ document.addEventListener("click", function () {
                 </select>
             </div>
 
-            <!-- Buttons -->
+            <!-- Form actions -->
             <div class="button-row">
                 <button type="submit" name="add" class="btn-primary">
                     Add Equipment

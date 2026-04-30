@@ -1,203 +1,510 @@
 <?php
-include('../database/db.php');
-
 session_start();
 
-if (!isset($_SESSION['user_id'])) {
+include('../database/db.php');
+
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: login.php");
     exit();
 }
 
-$name = "User"; // fallback
-
+$name = "User";
 if (isset($_SESSION['full_name'])) {
     $fullName = $_SESSION['full_name'];
     $nameParts = explode(" ", trim($fullName));
-    $name = $nameParts[0]; // first name only
+    $name = $nameParts[0];
 }
 
-// COUNTS
+// Build profile initials
+$fullNameRaw = trim(preg_replace('/\s+/', ' ', (string)($_SESSION['full_name'] ?? $name)));
+$parts = $fullNameRaw !== '' ? preg_split('/\s+/', $fullNameRaw) : [];
+$first = $parts[0] ?? '';
+$last  = count($parts) > 1 ? $parts[count($parts) - 1] : '';
+$profileInitials = strtoupper(substr($first, 0, 1) . ($last !== '' ? substr($last, 0, 1) : substr($first, 1, 1)));
+$profileInitials = $profileInitials !== '' ? $profileInitials : 'U';
+
+$addUserMessage = '';
+$addUserMessageType = '';
+$openAddUserModal = false;
+
+if (isset($_POST['create_user'])) {
+    $openAddUserModal = true;
+
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        $addUserMessage = "Invalid request. Please try again.";
+        $addUserMessageType = 'error';
+    } else {
+        $newFullName = trim($_POST['full_name'] ?? '');
+        $newUsername = trim($_POST['username'] ?? '');
+        $newPassword = trim($_POST['password'] ?? '');
+        $newRole = trim($_POST['role'] ?? '');
+        $allowedRoles = ['admin', 'staff'];
+
+        if (!in_array($newRole, $allowedRoles, true)) {
+            $addUserMessage = "Invalid role selected.";
+            $addUserMessageType = 'error';
+        } elseif ($newFullName === '' || $newUsername === '' || $newPassword === '') {
+            $addUserMessage = "All fields are required.";
+            $addUserMessageType = 'error';
+        } elseif (strlen($newPassword) < 8) {
+            $addUserMessage = "Password must be at least 8 characters.";
+            $addUserMessageType = 'error';
+        } else {
+            $hashedPassword = password_hash($newPassword, PASSWORD_BCRYPT);
+            $stmt = mysqli_prepare($conn, "INSERT INTO users (full_name, username, password, roles) VALUES (?, ?, ?, ?)");
+            mysqli_stmt_bind_param($stmt, 'ssss', $newFullName, $newUsername, $hashedPassword, $newRole);
+
+            if (mysqli_stmt_execute($stmt)) {
+                $_SESSION['success'] = "User account created successfully.";
+                $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+                mysqli_stmt_close($stmt);
+                header("Location: users.php");
+                exit();
+            } else {
+                $addUserMessage = "Error: " . mysqli_stmt_error($stmt);
+                $addUserMessageType = 'error';
+            }
+            mysqli_stmt_close($stmt);
+        }
+    }
+}
+
 $totalUsers = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM users"))['total'];
 $totalAdmins = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM users WHERE roles='admin'"))['total'];
-$totalStaff  = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM users WHERE roles='staff'"))['total'];
+$totalStaff = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM users WHERE roles='staff'"))['total'];
+
+// Search + filter
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+$role = isset($_GET['role']) ? trim($_GET['role']) : '';
+$searchEscaped = mysqli_real_escape_string($conn, $search);
+$roleEscaped = mysqli_real_escape_string($conn, $role);
+
+$where = "WHERE 1=1";
+if ($search !== '') {
+    $where .= " AND (full_name LIKE '%$searchEscaped%' OR username LIKE '%$searchEscaped%')";
+}
+if ($role !== '') {
+    $where .= " AND roles = '$roleEscaped'";
+}
 
 $limit = 5;
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$page = max($page, 1);
 $offset = ($page - 1) * $limit;
 
-// COUNT USERS
-$totalQuery = mysqli_query($conn, "SELECT COUNT(*) as total FROM users");
+$totalQuery = mysqli_query($conn, "SELECT COUNT(*) as total FROM users $where");
 $totalRow = mysqli_fetch_assoc($totalQuery);
-$totalRecords = $totalRow['total'];
-$totalPages = ceil($totalRecords / $limit);
+$totalRecords = (int)$totalRow['total'];
+$totalPages = max((int)ceil($totalRecords / $limit), 1);
 
-// FETCH USERS WITH LIMIT
+if ($page > $totalPages) {
+    $page = $totalPages;
+    $offset = ($page - 1) * $limit;
+}
+
 $usersQuery = mysqli_query($conn, "
-    SELECT * FROM users 
+    SELECT * FROM users
+    $where
     ORDER BY user_id ASC
     LIMIT $limit OFFSET $offset
 ");
+$displayedRows = mysqli_num_rows($usersQuery);
+
+$queryParams = [];
+if ($search !== '') $queryParams[] = 'search=' . urlencode($search);
+if ($role !== '') $queryParams[] = 'role=' . urlencode($role);
+$filterString = count($queryParams) ? '&' . implode('&', $queryParams) : '';
+
 ?>
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Users</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Users — BSU Asset Manager</title>
+    <link rel="icon" href="../img/favicon-96.png" type="image/png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Funnel+Sans:ital,wght@0,300..800;1,300..800&family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&family=Mona+Sans:ital,wght@0,200..900;1,200..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/admin/style.css">
+    <link rel="stylesheet" href="../css/admin/sidebar.css">
+    <link rel="stylesheet" href="../css/admin/users.css">
+    <link rel="stylesheet" href="../css/admin/modal.css">
 </head>
-
 <body>
 
-<?php include('sidebar.php');?>
+<?php include('sidebar.php'); ?>
 
-<div class="header">
+<header class="topbar">
+    <div class="topbar-title">
         <h1>Users</h1>
+        <p>Manage admin and staff access securely</p>
+    </div>
+    <div class="topbar-right">
+        <span class="topbar-date"><?php echo date('l, F j, Y'); ?></span>
+        <div class="profile-wrap">
+            <button class="profile-btn" id="profileBtn">
+                <?php echo htmlspecialchars($profileInitials); ?>
+            </button>
+            <div class="profile-dropdown" id="profileDropdown">
+                <div class="profile-dropdown-header">
+                    <p><?php echo htmlspecialchars($_SESSION['full_name'] ?? $name); ?></p>
+                    <p>Administrator</p>
+                </div>
+                <a href="logout.php" class="danger">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 -960 960 960" fill="currentColor"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z"/></svg>
+                    Sign Out
+                </a>
+            </div>
+        </div>
+    </div>
+</header>
 
-        <div class="header-right">
-        <button class="profile_btn" id="profileBtn">
-            <svg xmlns="http://www.w3.org/2000/svg" height="34px" viewBox="0 -960 960 960" width="40px" fill="#FFFFFF"><path d="M226-262q59-42.33 121.33-65.5 62.34-23.17 132.67-23.17 70.33 0 133 23.17T734.67-262q41-49.67 59.83-103.67T813.33-480q0-141-96.16-237.17Q621-813.33 480-813.33t-237.17 96.16Q146.67-621 146.67-480q0 60.33 19.16 114.33Q185-311.67 226-262Zm155.83-224.5Q342-526.33 342-584.67q0-58.33 39.83-98.16 39.84-39.84 98.17-39.84t98.17 39.84Q618-643 618-584.67q0 58.34-39.83 98.17-39.84 39.83-98.17 39.83t-98.17-39.83ZM480-80q-82.33 0-155.33-31.5-73-31.5-127.34-85.83Q143-251.67 111.5-324.67T80-480q0-83 31.5-155.67 31.5-72.66 85.83-127Q251.67-817 324.67-848.5T480-880q83 0 155.67 31.5 72.66 31.5 127 85.83 54.33 54.34 85.83 127Q880-563 880-480q0 82.33-31.5 155.33-31.5 73-85.83 127.34-54.34 54.33-127 85.83Q563-80 480-80Zm105-82.5q50.67-15.83 97.67-52.17-47-33.66-98-51.5Q533.67-284 480-284t-104.67 17.83q-51 17.84-98 51.5 47 36.34 97.67 52.17 50.67 15.83 105 15.83t105-15.83Zm-53.67-370.83q20-20 20-51.34 0-31.33-20-51.33T480-656q-31.33 0-51.33 20t-20 51.33q0 31.34 20 51.34 20 20 51.33 20t51.33-20ZM480-584.67Zm0 369.34Z"/></svg>        
+<button type="button" class="fab js-open-add-user" title="Add User">
+    <svg xmlns="http://www.w3.org/2000/svg" height="23px" viewBox="0 -960 960 960" width="23px" fill="currentColor">
+        <path d="M440-440H200v-80h240v-240h80v240h240v80H520v240h-80v-240Z"/>
+    </svg>
+</button>
+
+<main class="main">
+    <section class="users-hero">
+        <div class="users-hero-copy">
+            <p class="eyebrow">Administration</p>
+            <h2>User Management</h2>
+            <p class="hero-subtitle">Manage all administrator and staff accounts in the system.</p>
+        </div>
+    </section>
+
+    <section class="users-metrics">
+        <article class="metric-card metric-all-accounts">
+            <div class="metric-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 -960 960 960" fill="currentColor"><path d="M367-527q-47-47-47-113t47-113q47-47 113-47t113 47q47 47 47 113t-47 113q-47 47-113 47t-113-47ZM160-160v-112q0-34 17.5-62.5T224-378q62-31 126-46.5T480-440q66 0 130 15.5T736-378q29 15 46.5 43.5T800-272v112H160Z"/></svg>
+            </div>
+            <div class="metric-body">
+                <p>All Accounts</p>
+                <strong><?php echo $totalUsers; ?></strong>
+            </div>
+        </article>
+        <article class="metric-card metric-staff-accounts">
+            <div class="metric-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 -960 960 960" fill="currentColor"><path d="M234-276q51-39 114-61.5T480-360q69 0 132 22.5T726-276q14-17 24-36.5t16-41.5q-42-48-66-106t-24-120q0-109-76-184.5T416-840q-109 0-184.5 75.5T156-580q0 62-24 120t-66 106q6 22 16 41.5T106-276Zm246 116q-83 0-156-31.5T197-277q-54-54-85.5-127T80-560q0-83 31.5-156T197-843q54-54 127-85.5T480-960q83 0 156 31.5T763-843q54 54 85.5 127T880-560q0 83-31.5 156T763-277q-54 54-127 85.5T480-160Zm0-80q47 0 90.5-11.5T654-284q-40-28-84-42t-90-14q-46 0-90 14t-84 42q40 20 83.5 31.5T480-240Z"/></svg>
+            </div>
+            <div class="metric-body">
+                <p>Staff Accounts</p>
+                <strong><?php echo $totalStaff; ?></strong>
+            </div>
+        </article>
+        <article class="metric-card metric-admin-accounts">
+            <div class="metric-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 -960 960 960" fill="currentColor"><path d="M80-120v-80h800v80H80Zm80-160v-400h640v400H160Zm80-80h480v-240H240v240Zm240 0Z"/></svg>
+            </div>
+            <div class="metric-body">
+                <p>Admin Accounts</p>
+                <strong><?php echo $totalAdmins; ?></strong>
+            </div>
+        </article>
+    </section>
+
+    <section class="content-grid">
+        <div class="table-wrap section-card">
+            <div class="section-header">
+                <h2>Users</h2>
+
+                <div class="search-filter-bar-wrap">
+                    <form method="GET" action="users.php" class="search-filter-bar">
+                        <div class="search-input-wrap sf-search-input">
+                            <svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor"><path d="M784-120 532-372q-30 24-69 38t-83 14q-109 0-184.5-75.5T120-580q0-109 75.5-184.5T380-840q109 0 184.5 75.5T640-580q0 44-14 83t-38 69l252 252-56 56ZM380-400q75 0 127.5-52.5T560-580q0-75-52.5-127.5T380-760q-75 0-127.5 52.5T200-580q0 75 52.5 127.5T380-400Z"/></svg>
+                            <input
+                                type="text"
+                                name="search"
+                                placeholder="Search full name or username..."
+                                value="<?php echo htmlspecialchars($search); ?>"
+                                autocomplete="off"
+                            >
+                        </div>
+
+                        <select name="role" class="sf-role">
+                            <option value="">All Roles</option>
+                            <option value="admin" <?php if ($role === 'admin') echo 'selected'; ?>>Admin</option>
+                            <option value="staff" <?php if ($role === 'staff') echo 'selected'; ?>>Staff</option>
+                        </select>
+
+                        <button type="submit" class="btn-search sf-search-btn">Search</button>
+
+                        <?php if ($search !== '' || $role !== ''): ?>
+                            <a href="users.php" class="btn-clear-filter sf-clear-btn">&#x2715; Clear</a>
+                        <?php endif; ?>
+                    </form>
+
+                    <p class="result-count">
+                        <?php if ($search !== '' || $role !== ''): ?>
+                            Showing <strong><?php echo $totalRecords; ?></strong> result<?php echo $totalRecords !== 1 ? 's' : ''; ?>
+                            <?php if ($search !== ''): ?> for <strong>"<?php echo htmlspecialchars($search); ?>"</strong><?php endif; ?>
+                        <?php else: ?>
+                            Showing <strong><?php echo $totalRecords; ?></strong> user account<?php echo $totalRecords !== 1 ? 's' : ''; ?> total
+                        <?php endif; ?>
+                    </p>
+                </div>
+            </div>
+            <?php if (isset($_SESSION['success'])): ?>
+                <div class="message-box success"><?php echo htmlspecialchars($_SESSION['success']); unset($_SESSION['success']); ?></div>
+            <?php endif; ?>
+
+            <table class="users-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Full Name</th>
+                        <th>Username</th>
+                        <th>Role</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (mysqli_num_rows($usersQuery) === 0): ?>
+                        <tr class="empty-row">
+                            <td colspan="5">No users found.</td>
+                        </tr>
+                    <?php else: ?>
+                        <?php while ($row = mysqli_fetch_assoc($usersQuery)) { ?>
+                            <tr>
+                                <td class="id-cell">#<?php echo $row['user_id']; ?></td>
+                                <td class="name-cell"><?php echo htmlspecialchars($row['full_name']); ?></td>
+                                <td><?php echo htmlspecialchars($row['username']); ?></td>
+                                <td>
+                                    <span class="role-badge <?php echo strtolower($row['roles']) === 'admin' ? 'admin' : 'staff'; ?>">
+                                        <?php echo ucfirst($row['roles']); ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="table-actions">
+                                        <a href="edit_user.php?id=<?php echo $row['user_id']; ?>" class="btn btn-edit">Edit</a>
+                                        <form method="POST" action="../config/delete_user.php" class="delete-form">
+                                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                            <input type="hidden" name="id" value="<?php echo $row['user_id']; ?>">
+                                            <button type="button" class="btn btn-delete" onclick="openDeleteUserModal(this.form)">Delete</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php } ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+
+            <?php if ($displayedRows < $limit): ?>
+                <div class="table-filler">
+                    <p>That's it!</p>
+                    <span>Newly created accounts will appear here automatically.</span>
+                </div>
+            <?php endif; ?>
+
+            <div class="pagination">
+                <?php if ($page > 1): ?>
+                    <a href="?page=<?php echo $page - 1; ?><?php echo $filterString; ?>">&laquo; Prev</a>
+                <?php endif; ?>
+
+                <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                    <a href="?page=<?php echo $i; ?><?php echo $filterString; ?>" class="<?php echo ($i == $page) ? 'active' : ''; ?>">
+                        <?php echo $i; ?>
+                    </a>
+                <?php endfor; ?>
+
+                <?php if ($page < $totalPages): ?>
+                    <a href="?page=<?php echo $page + 1; ?><?php echo $filterString; ?>">Next &raquo;</a>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div class="quick-actions">
+                <h3>Quick Actions</h3>
+                <div class="action-list">
+                    <button type="button" class="action-item primary js-open-add-user">
+                        <div class="action-item-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 -960 960 960" fill="white"><path d="M726.67-400v-126.67H600v-66.66h126.67V-720h66.66v126.67H920v66.66H793.33V-400h-66.66ZM250.33-524.33Q206.67-568 206.67-634t43.66-109.67Q294-787.33 360-787.33t109.67 43.66Q513.33-700 513.33-634t-43.66 109.67Q426-480.67 360-480.67t-109.67-43.66ZM40-160v-100q0-34.67 17.5-63.17T106.67-366q70.66-32.33 131-46.5Q298-426.67 360-426.67t122 14.17q60 14.17 130.67 46.5 31.66 15 49.5 43.17Q680-294.67 680-260v100H40Z"/></svg>
+                        </div>
+                        <div class="action-item-body">
+                            <strong>Create User Account</strong>
+                            <span>Add admin or staff credentials</span>
+                        </div>
+                        <svg class="action-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 -960 960 960" fill="white"><path d="M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="insights-card">
+                <h3>Role Distribution</h3>
+                <?php
+                    $totalForPct = max((int)$totalUsers, 1);
+                    $adminPct = round(((int)$totalAdmins / $totalForPct) * 100);
+                    $staffPct = round(((int)$totalStaff / $totalForPct) * 100);
+                ?>
+                <div class="progress-item">
+                    <span class="progress-label">Admins</span>
+                    <div class="progress-bar-wrap">
+                        <div class="progress-bar-fill admin" style="width: <?php echo $adminPct; ?>%;"></div>
+                    </div>
+                    <span class="progress-count"><?php echo $totalAdmins; ?></span>
+                </div>
+                <div class="progress-item">
+                    <span class="progress-label">Staff</span>
+                    <div class="progress-bar-wrap">
+                        <div class="progress-bar-fill staff" style="width: <?php echo $staffPct; ?>%;"></div>
+                    </div>
+                    <span class="progress-count"><?php echo $totalStaff; ?></span>
+                </div>
+            </div>
+
+            <div class="guide-card">
+                <h3>User Management Guide</h3>
+                <p>Keep access clean and secure by assigning correct roles and reviewing unused accounts regularly.</p>
+                <ul>
+                    <li>Use Admin only for trusted management users.</li>
+                    <li>Remove inactive accounts to reduce security risk.</li>
+                    <li>Update user details as role responsibilities change.</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+</main>
+
+<div class="modal-overlay<?php echo $openAddUserModal ? ' active' : ''; ?>" id="addUserModal">
+    <div class="modal-card">
+        <div class="modal-head">
+            <div>
+                <p class="modal-kicker">User Access</p>
+                <h3>Create User Account</h3>
+                <p>Add a new admin or staff account securely.</p>
+            </div>
+            <button type="button" class="modal-close" id="closeAddUserModal" aria-label="Close">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 -960 960 960" fill="currentColor"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/></svg>
+            </button>
+        </div>
+
+        <?php if ($addUserMessage !== ''): ?>
+            <div class="modal-message <?php echo $addUserMessageType === 'error' ? 'error' : 'success'; ?>">
+                <?php echo htmlspecialchars($addUserMessage); ?>
+            </div>
+        <?php endif; ?>
+
+        <form method="POST" action="users.php" class="add-user-form">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+
+            <div class="input-group">
+                <label for="create_full_name">Full Name</label>
+                <input id="create_full_name" type="text" name="full_name" placeholder="Enter full name" value="<?php echo htmlspecialchars($_POST['full_name'] ?? ''); ?>" required>
+            </div>
+            <div class="input-group">
+                <label for="create_username">Username</label>
+                <input id="create_username" type="text" name="username" placeholder="Enter username" value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>" required>
+            </div>
+            <div class="input-group">
+                <label for="create_password">Password</label>
+                <input id="create_password" type="password" name="password" placeholder="Enter password (min. 8 characters)" minlength="8" required>
+            </div>
+            <div class="input-group">
+                <label for="create_role">Role</label>
+                <select id="create_role" name="role" required>
+                    <option value="">Select Role</option>
+                    <option value="admin" <?php if (($_POST['role'] ?? '') === 'admin') echo 'selected'; ?>>Admin</option>
+                    <option value="staff" <?php if (($_POST['role'] ?? '') === 'staff') echo 'selected'; ?>>Staff</option>
+                </select>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" id="cancelAddUser">Cancel</button>
+                <button type="submit" name="create_user" class="btn-primary">Create User</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal-overlay" id="deleteUserModal">
+    <div class="modal-box confirm-modern">
+        <button type="button" class="confirm-close" onclick="closeDeleteUserModal()" aria-label="Close">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 -960 960 960" fill="currentColor"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/></svg>
         </button>
+        <div class="confirm-icon-wrap">
+            <span class="confirm-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 -960 960 960" fill="currentColor"><path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Z"/></svg>
+            </span>
         </div>
-
-        <!-- DROPDOWN -->
-        <div class="dropdown" id="dropdownMenu">
-            <p>Greetings, <?php echo $name?>!</p>
-            <a href="logout.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#000000"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z"/></svg>Logout</a>
+        <h3>Are you sure?</h3>
+        <p class="confirm-body">Delete this user account? This action cannot be undone.</p>
+        <div class="modal-actions confirm-actions">
+            <button type="button" class="confirm-btn-danger" id="confirmDeleteUserBtn">Delete User</button>
+            <button type="button" class="confirm-btn-secondary" onclick="closeDeleteUserModal()">Cancel</button>
         </div>
-
     </div>
 </div>
 
 <script>
-const btn = document.getElementById("profileBtn");
-const menu = document.getElementById("dropdownMenu");
+const profileBtn = document.getElementById('profileBtn');
+const profileDropdown = document.getElementById('profileDropdown');
 
-btn.addEventListener("click", function (e) {
+profileBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    menu.classList.toggle("active");
+    profileDropdown.classList.toggle('open');
+});
+document.addEventListener('click', () => {
+    profileDropdown.classList.remove('open');
 });
 
-// close when clicking outside
-document.addEventListener("click", function () {
-    menu.classList.remove("active");
+const addUserModal = document.getElementById('addUserModal');
+const openAddUserBtns = document.querySelectorAll('.js-open-add-user');
+const closeAddUserModal = document.getElementById('closeAddUserModal');
+const cancelAddUser = document.getElementById('cancelAddUser');
+let _deleteUserForm = null;
+
+function showAddUserModal() {
+    addUserModal.classList.add('active');
+    document.body.classList.add('modal-open');
+}
+function hideAddUserModal() {
+    addUserModal.classList.remove('active');
+    document.body.classList.remove('modal-open');
+}
+
+openAddUserBtns.forEach((btn) => {
+    btn.addEventListener('click', showAddUserModal);
+});
+
+if (closeAddUserModal) closeAddUserModal.addEventListener('click', hideAddUserModal);
+if (cancelAddUser) cancelAddUser.addEventListener('click', hideAddUserModal);
+
+addUserModal.addEventListener('click', (e) => {
+    if (e.target === addUserModal) hideAddUserModal();
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') hideAddUserModal();
+});
+
+<?php if ($openAddUserModal): ?>
+showAddUserModal();
+<?php endif; ?>
+
+function openDeleteUserModal(formEl) {
+    _deleteUserForm = formEl;
+    document.getElementById('deleteUserModal').classList.add('active');
+}
+function closeDeleteUserModal() {
+    document.getElementById('deleteUserModal').classList.remove('active');
+    _deleteUserForm = null;
+}
+document.getElementById('confirmDeleteUserBtn').addEventListener('click', function() {
+    if (_deleteUserForm) _deleteUserForm.submit();
+});
+document.getElementById('deleteUserModal').addEventListener('click', function(e) {
+    if (e.target === this) closeDeleteUserModal();
 });
 </script>
 
-<a href="add_user.php" class="fab" title="Add User">
-    <svg xmlns="http://www.w3.org/2000/svg" height="28px" viewBox="0 -960 960 960" width="28px" fill="#fff">
-        <path d="M440-440H200v-80h240v-240h80v240h240v80H520v240h-80v-240Z"/>
-    </svg>
-</a>
-
-<div class="main">
-
-        <div class="users-grid">
-
-            <div class="user-box users-total">
-                <h3>Total Users</h3>
-                <p><?php echo $totalUsers; ?></p>
-            </div>
-
-            <div class="user-box users-admin">
-                <h3>Admins</h3>
-                <p><?php echo $totalAdmins; ?></p>
-            </div>
-
-            <div class="user-box users-staff">
-                <h3>Staff</h3>
-                <p><?php echo $totalStaff; ?></p>
-            </div>
-
-        </div>
-
-    <br><br>
-
-
-    <!-- USERS TABLE -->
-    <div class="table-wrap">
-    <div class="transaction-table">
-        <h2>Users List</h2>
-
-        <table class="table" width="100%" cellpadding="10" cellspacing="0">
-            <tr>
-                <th>ID</th>
-                <th>Full Name</th>
-                <th>Username</th>
-                <th>Role</th>
-                <th>Action</th>
-            </tr>
-
-            <?php while($row = mysqli_fetch_assoc($usersQuery)) { ?>
-            <tr>
-            <td><?php echo $row['user_id']; ?></td>
-            <td><?php echo htmlspecialchars($row['full_name']); ?></td>
-            <td><?php echo htmlspecialchars($row['username']); ?></td>
-            <td><?php echo ucfirst($row['roles']); ?></td>
-
-            <td>
-                <a href="edit_user.php?id=<?php echo $row['user_id']; ?>"
-                style="color:white; background:#1976d2; padding:6px 10px; border-radius:6px; text-decoration:none; font-size:0.85em; margin-right:5px;">
-                Edit
-                </a>
-                <a href="../config/delete_user.php?id=<?php echo $row['user_id']; ?>"
-                onclick="return confirm('Are you sure you want to delete this user?')"
-                style="color:white; background:#C40C0C; padding:6px 10px; border-radius:6px; text-decoration:none;">
-                Delete
-                </a>
-    </td>
-</tr>
-            <?php } ?>
-
-        </table>
-
-        <div class="pagination">
-
-    <?php if ($page > 1): ?>
-        <a href="?page=<?php echo $page - 1; ?>">&laquo; Prev</a>
-    <?php endif; ?>
-
-    <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-        <a href="?page=<?php echo $i; ?>"
-           class="<?php echo ($i == $page) ? 'active' : ''; ?>">
-            <?php echo $i; ?>
-        </a>
-    <?php endfor; ?>
-
-    <?php if ($page < $totalPages): ?>
-        <a href="?page=<?php echo $page + 1; ?>">Next &raquo;</a>
-    <?php endif; ?>
-
-</div>
-    </div>
-    </div>
-    <br><br>
-
-    <div class="users-intro">
-
-    <div class="intro-main">
-        <h2>User Management</h2>
-        <p>Manage system users, roles, and access permissions for the asset management system.</p>
-    </div>
-
-        <div class="intro-badges">
-
-        <div class="badge primary">
-            <p class="badge-title">Admin & Staff Control</p>
-            <p class="badge-desc">Manage who can access system features and administrative tools.</p>
-        </div>
-
-        <div class="badge secondary">
-            <p class="badge-title">Secure Role-Based Access</p>
-            <p class="badge-desc">Each account is assigned permissions based on its role level.</p>
-        </div>
-
-    </div>
-    </div>
-</div>
-
-
 </body>
 </html>
+

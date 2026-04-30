@@ -1,6 +1,6 @@
 <?php
-require_once __DIR__ . '/../database/db.php';
 session_start();
+require_once __DIR__ . '/../database/db.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     if (isset($_POST['update']) && !isset($_GET['id'])) {
@@ -12,11 +12,25 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     exit();
 }
 
+
+// CSRF token
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 $isAjax = isset($_POST['update']) && !isset($_GET['id']);
 
-// ── AJAX / fetch POST ──────────────────────────────────────────
+// AJAX update
 if ($isAjax) {
     header('Content-Type: application/json');
+
+
+    // CSRF check
+    $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? $_POST['csrf_token'] ?? '';
+    if (empty($token) || !hash_equals($_SESSION['csrf_token'], $token)) {
+        echo json_encode(['success' => false, 'message' => 'Invalid CSRF token.']);
+        exit();
+    }
 
     $id     = isset($_POST['id'])     ? (int) $_POST['id']                                : 0;
     $status = isset($_POST['status']) ? mysqli_real_escape_string($conn, $_POST['status']) : '';
@@ -31,6 +45,17 @@ if ($isAjax) {
         exit();
     }
 
+    // Block update if reserved
+    $activeRes = mysqli_fetch_assoc(mysqli_query($conn,
+        "SELECT reservation_id FROM reservations
+         WHERE equipment_id = $id AND status IN ('pending','approved')
+         LIMIT 1"
+    ));
+    if ($activeRes) {
+        echo json_encode(['success' => false, 'message' => 'Cannot change status: this equipment has an active reservation. Resolve the reservation first.']);
+        exit();
+    }
+
     $update = mysqli_query($conn, "UPDATE equipments SET status = '$status' WHERE equipment_id = $id");
 
     if ($update) {
@@ -41,7 +66,7 @@ if ($isAjax) {
     exit();
 }
 
-// ── Legacy GET page flow (kept intact) ────────────────────────
+// Legacy page flow
 if (!isset($_GET['id'])) {
     header("Location: equipments.php");
     exit();
@@ -60,10 +85,27 @@ if (!$data) {
 $message = "";
 
 if (isset($_POST['update'])) {
+    // CSRF check
+    if (
+        empty($_SESSION['csrf_token']) ||
+        !isset($_POST['csrf_token']) ||
+        !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])
+    ) {
+        $message = "Invalid request. Please try again.";
+    } else {
     $status  = mysqli_real_escape_string($conn, $_POST['status']);
     $allowed = ['Available', 'In-Use', 'Under Maintenance'];
 
     if (in_array($status, $allowed)) {
+        // Block update if reserved
+        $activeRes = mysqli_fetch_assoc(mysqli_query($conn,
+            "SELECT reservation_id FROM reservations
+             WHERE equipment_id = $id AND status IN ('pending','approved')
+             LIMIT 1"
+        ));
+        if ($activeRes) {
+            $message = "Cannot change status: this equipment has an active reservation. Resolve the reservation first.";
+        } else {
         $update = mysqli_query($conn, "UPDATE equipments SET status = '$status' WHERE equipment_id = $id");
         if ($update) {
             $_SESSION['success'] = "Status updated successfully!";
@@ -72,9 +114,11 @@ if (isset($_POST['update'])) {
         } else {
             $message = "Error: " . mysqli_error($conn);
         }
+        } // end activeRes check
     } else {
         $message = "Invalid status.";
     }
+    } // end csrf else
 }
 ?>
 
@@ -85,7 +129,7 @@ if (isset($_POST['update'])) {
     <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Funnel+Sans:ital,wght@0,300..800;1,300..800&family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&family=Mona+Sans:ital,wght@0,200..900;1,200..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/admin/style.css">
 </head>
 
 <body>
@@ -100,9 +144,9 @@ if (isset($_POST['update'])) {
         </button>
         </div>
 
-        <!-- DROPDOWN -->
+        <!-- Dropdown -->
         <div class="dropdown" id="dropdownMenu">
-            <p>Greetings, <?php echo $name?>!</p>
+            <p>Greetings, <?php echo htmlspecialchars($name ?? ''); ?>!</p>
             <a href="logout.php"><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#000000"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z"/></svg>Logout</a>
         </div>
 
@@ -118,7 +162,7 @@ btn.addEventListener("click", function (e) {
     menu.classList.toggle("active");
 });
 
-// close when clicking outside
+// Close dropdown on outside click
 document.addEventListener("click", function () {
     menu.classList.remove("active");
 });
@@ -132,10 +176,11 @@ document.addEventListener("click", function () {
         <h2>Update Equipment Status</h2>
 
         <?php if ($message != "") { ?>
-            <p style="color:red;"><?php echo $message; ?></p>
+            <p style="color:red;"><?php echo htmlspecialchars($message); ?></p>
         <?php } ?>
 
         <form method="POST" class="form-grid">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
 
             <div class="input-group">
             <label>Equipment</label>
@@ -169,7 +214,7 @@ document.addEventListener("click", function () {
             <a href="equipments.php" class="btn-secondary">
                 Cancel
             </a>
-</button-row>
+</div>
 
         </form>
 
