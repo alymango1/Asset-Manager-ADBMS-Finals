@@ -874,6 +874,82 @@ body.modal-open {
     animation: modalPopIn 0.28s cubic-bezier(0.18, 0.9, 0.2, 1) both;
 }
 
+.modal-box.confirm-modern {
+    position: relative;
+    width: min(420px, 94vw);
+    background: #fff;
+    border-radius: 20px;
+    border: 1px solid rgba(24, 9, 12, 0.09);
+    box-shadow:
+        0 32px 72px rgba(0, 0, 0, 0.22),
+        0 0 0 1px rgba(255, 255, 255, 0.06);
+    padding: 36px 32px 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    animation: modalPopIn 0.28s cubic-bezier(0.18, 0.9, 0.2, 1) both;
+}
+ 
+.modal-box.confirm-modern h3 {
+    margin: 0 0 10px;
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.45rem;
+    font-weight: 400;
+    color: var(--text-1);
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+}
+
+.confirm-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+}
+ 
+.confirm-btn-danger {
+    width: 100%;
+    padding: 11px 20px;
+    background: linear-gradient(135deg, var(--red) 0%, #8B0B1E 100%);
+    color: #fff;
+    border: none;
+    border-radius: 11px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    box-shadow: 0 4px 14px rgba(200, 16, 46, 0.30);
+    transition: transform 0.15s, box-shadow 0.15s;
+    letter-spacing: 0.01em;
+}
+.confirm-btn-danger:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(200, 16, 46, 0.40);
+}
+.confirm-btn-danger:active {
+    transform: translateY(0) scale(0.98);
+}
+ 
+
+.confirm-btn-secondary {
+    width: 100%;
+    padding: 11px 20px;
+    background: #f5f1f2;
+    color: #7a636a;
+    border: 1.5px solid #e0d8da;
+    border-radius: 11px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s, border-color 0.15s;
+}
+.confirm-btn-secondary:hover {
+    background: #ede7e9;
+    border-color: #cec4c7;
+}
+
 .modal-head {
     display: flex;
     align-items: flex-start;
