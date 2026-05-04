@@ -173,13 +173,13 @@ document.addEventListener('click', () => {
                 </thead>
                 <tbody>
                     <?php while($row = mysqli_fetch_assoc($result)) { ?>
-                    <tr>
+                    <tr style="background:#ffffff !important;">
                         <td>#<?php echo $row['transaction_id']; ?></td>
                         <td class="equip-name"><?php echo htmlspecialchars($row['resource_name']); ?></td>
                         <td>
                             <?php echo htmlspecialchars($row['performed_name'] ?? '—'); ?>
                             <?php if (!empty($row['performed_fullname'])): ?>
-                                <br><small class="muted"><?php echo htmlspecialchars($row['performed_fullname']); ?></small>
+                                <span class="muted"><?php echo htmlspecialchars($row['performed_fullname']); ?></span>
                             <?php endif; ?>
                         </td>
                         <td class="muted"><?php echo htmlspecialchars($row['action_date']); ?></td>

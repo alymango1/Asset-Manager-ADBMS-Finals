@@ -146,7 +146,7 @@ $inUseCount = mysqli_num_rows($inUseQuery);
             </tr>
 
             <?php while ($row = mysqli_fetch_assoc($inUseQuery)): ?>
-            <tr id="row-<?php echo $row['equipment_id']; ?>">
+            <tr id="row-<?php echo $row['equipment_id']; ?>" style="background:#fff !important;">
                 <td><?php echo $row['equipment_id']; ?></td>
                 <td><b><?php echo htmlspecialchars($row['resource_name']); ?></b></td>
                 <td><?php echo htmlspecialchars($row['categories']); ?></td>
@@ -183,40 +183,6 @@ $inUseCount = mysqli_num_rows($inUseQuery);
         <?php endif; ?>
         </div>
 
-        <div class="right-panel">
-            <div class="guide-card">
-                <h3>Return Guide</h3>
-                <p>Mark items as returned to make them available again. Each return is saved in the log.</p>
-                <ul>
-                    <li>Use remarks for damage notes or missing parts.</li>
-                    <li>Linked reservation info helps accountability checks.</li>
-                    <li>If an upcoming approved reservation exists, status becomes <b>Reserved</b>.</li>
-                </ul>
-            </div>
-            <div class="quick-actions">
-                <h3>Shortcuts</h3>
-                <div class="action-list-mini">
-                    <a href="equipments.php">
-                        <span class="mini-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 -960 960 960" fill="currentColor"><path d="M756-120 537-339l84-84 219 219-84 84Zm-552 0-84-84 276-276-68-68-28 28-51-51v82l-28 28-121-121 28-28h82l-50-50 142-142q20-20 43-29t47-9q24 0 47 9t43 29l-92 92 50 50-28 28 68 68 90-90q-4-11-6.5-23t-2.5-24q0-59 40.5-99.5T701-841q15 0 28.5 3t27.5 9l-99 99 72 72 99-99q7 14 9.5 27.5T841-701q0 59-40.5 99.5T701-561q-12 0-24-2t-23-7L204-120Z"/></svg>
-                        </span>
-                        Open Equipment List
-                    </a>
-                    <a href="reservation.php">
-                        <span class="mini-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 -960 960 960" fill="currentColor"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h168q13-36 43.5-58t68.5-22q38 0 68.5 22t43.5 58h168q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm280-640q17 0 28.5-11.5T520-800q0-17-11.5-28.5T480-840q-17 0-28.5 11.5T440-800q0 17 11.5 28.5T480-760Z"/></svg>
-                        </span>
-                        Manage Reservations
-                    </a>
-                    <a href="transactions.php">
-                        <span class="mini-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 -960 960 960" fill="currentColor"><path d="M280-600v-80h400v80H280Zm0 160v-80h240v80H280Zm0 160v-80h400v80H280ZM200-80q-33 0-56.5-23.5T120-160v-640q0-33 23.5-56.5T200-880h560q33 0 56.5 23.5T840-800v640q0 33-23.5 56.5T760-80H200Z"/></svg>
-                        </span>
-                        View Transactions
-                    </a>
-                </div>
-            </div>
-        </div>
     </section>
 
 </main>
@@ -237,8 +203,8 @@ document.addEventListener('click', () => {
 <!-- Return modal -->
 <div class="modal-overlay" id="returnModal">
     <div class="modal-box">
-        <h3>
-            <svg xmlns="http://www.w3.org/2000/svg" height="22px" viewBox="0 -960 960 960" width="22px" fill="#16a34a">
+        <h3 style="display:flex; align-items:center; gap:8px; margin:0 0 10px; font-size:1.1rem;">
+            <svg xmlns="http://www.w3.org/2000/svg" height="22px" viewBox="0 -960 960 960" width="22px" fill="#16a34a" style="flex-shrink:0;">
                 <path d="M440-160q-121-15-200.5-105.5T160-480q0-66 26-126t72-106l57 57q-38 34-56.5 79T240-480q0 88 56 151.5T440-257v97Zm80 0v-97q69-8 124.5-71T700-480q0-100-70-170t-170-70h-3l44 44-56 56-140-140 140-140 56 57-44 43h3q134 0 227 93t93 227q0 121-79.5 211.5T520-160Z"/>
             </svg>
             Confirm Return
@@ -382,4 +348,3 @@ function showToast(message, type = 'success') {
 
 </body>
 </html>
-

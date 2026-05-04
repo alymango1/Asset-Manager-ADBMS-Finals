@@ -122,7 +122,33 @@ document.addEventListener("click", function () {
             </div>
         <?php } ?>
 
-        <form method="POST" class="form-grid">
+        <style>
+            .au-pw-wrap { position:relative; display:flex; align-items:center; }
+            .au-pw-wrap input { padding-right:36px !important; width:100%; }
+            .au-pw-toggle { position:absolute; right:10px; background:none; border:none; cursor:pointer; color:#b89898; padding:0; display:flex; align-items:center; transition:color 0.15s; }
+            .au-pw-toggle:hover { color:#C41E3A; }
+            .au-match-hint { font-size:11px; margin-top:4px; min-height:14px; font-weight:400; transition:color 0.2s; }
+            .au-match-hint.match    { color:#38a169; }
+            .au-match-hint.no-match { color:#C41E3A; }
+            input.au-error { border-color:#e53e3e !important; box-shadow:0 0 0 3px rgba(229,62,62,0.08) !important; }
+            input.au-ok    { border-color:#38a169 !important; box-shadow:0 0 0 3px rgba(56,161,105,0.08) !important; }
+            .btn-danger {
+                background: linear-gradient(135deg, #C41E3A 0%, #8B0000 100%);
+                color:#fff; border:none; padding:0.65rem 1.4rem; border-radius:8px;
+                font-size:13.5px; font-weight:500; cursor:pointer;
+                box-shadow:0 2px 8px rgba(196,30,58,0.25);
+                transition:all 0.15s ease;
+                display:inline-flex; align-items:center; gap:7px;
+                position:relative; overflow:hidden; font-family:inherit;
+            }
+            .btn-danger::before { content:""; position:absolute; top:0; left:-100%; width:60%; height:100%;  transition:left 0.45s ease; }
+            .btn-danger:hover::before { left:150%; }
+            .btn-danger:hover { background:linear-gradient(135deg,#d42040 0%,#9B1010 100%); box-shadow:0 4px 14px   rgba(196,30,58,0.32); transform:translateY(-1px); }
+            .btn-danger:active { transform:translateY(0) scale(0.99); }
+            .btn-danger:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+        </style>
+
+        <form method="POST" class="form-grid" id="addUserForm" onsubmit="return auValidate()">
             <!-- CSRF field -->
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
 
@@ -138,7 +164,31 @@ document.addEventListener("click", function () {
 
             <div class="input-group">
                 <label>Password</label>
-                <input type="password" name="password" placeholder="Enter password (min. 8 characters)" minlength="8" required>
+                <div class="au-pw-wrap">
+                    <input type="password" name="password" id="auPassword"
+                           placeholder="Min. 8 characters" minlength="8" required
+                           oninput="auCheckMatch()">
+                    <button type="button" class="au-pw-toggle" onclick="auToggle('auPassword','auEye1')" title="Show/hide">
+                        <svg id="auEye1" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label>Confirm Password</label>
+                <div class="au-pw-wrap">
+                    <input type="password" id="auConfirm"
+                           placeholder="Repeat password"
+                           oninput="auCheckMatch()">
+                    <button type="button" class="au-pw-toggle" onclick="auToggle('auConfirm','auEye2')" title="Show/hide">
+                        <svg id="auEye2" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="au-match-hint" id="auMatchHint"></div>
             </div>
 
             <div class="input-group">
@@ -151,16 +201,66 @@ document.addEventListener("click", function () {
             </div>
 
             <div class="button-row">
-                <button type="submit" name="submit" class="btn-primary">
+                <button type="submit" name="submit" class="btn-danger" id="auSubmitBtn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <line x1="19" y1="8" x2="19" y2="14"/>
+                        <line x1="22" y1="11" x2="16" y2="11"/>
+                    </svg>
                     Create User
                 </button>
-
-                <a href="users.php" class="btn-secondary">
-                    Cancel
-                </a>
+                <a href="users.php" class="btn-secondary">Cancel</a>
             </div>
 
         </form>
+
+        <script>
+        function auCheckMatch() {
+            const pw   = document.getElementById("auPassword").value;
+            const cpw  = document.getElementById("auConfirm").value;
+            const hint = document.getElementById("auMatchHint");
+            const pwEl = document.getElementById("auPassword");
+            const cpwEl= document.getElementById("auConfirm");
+            const btn  = document.getElementById("auSubmitBtn");
+            if (cpw === "") {
+                hint.textContent = ""; hint.className = "au-match-hint";
+                pwEl.classList.remove("au-error","au-ok");
+                cpwEl.classList.remove("au-error","au-ok");
+                btn.disabled = false; return;
+            }
+            if (pw === cpw) {
+                hint.textContent = "✓ Passwords match"; hint.className = "au-match-hint match";
+                pwEl.classList.remove("au-error");  pwEl.classList.add("au-ok");
+                cpwEl.classList.remove("au-error"); cpwEl.classList.add("au-ok");
+                btn.disabled = false;
+            } else {
+                hint.textContent = "✕ Passwords do not match"; hint.className = "au-match-hint no-match";
+                pwEl.classList.remove("au-ok");  pwEl.classList.add("au-error");
+                cpwEl.classList.remove("au-ok"); cpwEl.classList.add("au-error");
+                btn.disabled = true;
+            }
+        }
+        function auValidate() {
+            const pw  = document.getElementById("auPassword").value;
+            const cpw = document.getElementById("auConfirm").value;
+            if (pw !== cpw) {
+                document.getElementById("auMatchHint").textContent = "✕ Passwords do not match";
+                document.getElementById("auMatchHint").className   = "au-match-hint no-match";
+                return false;
+            }
+            return true;
+        }
+        function auToggle(inputId, iconId) {
+            const inp  = document.getElementById(inputId);
+            const icon = document.getElementById(iconId);
+            const show = inp.type === "password";
+            inp.type = show ? "text" : "password";
+            icon.innerHTML = show
+                ? \'<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>\'
+                : \'<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>\';
+        }
+        </script>
 
     </div>
 

@@ -249,7 +249,7 @@ $filterString = count($queryParams) ? '&' . implode('&', $queryParams) : '';
                 </td>
                 <td class="actions">
                     <div class="action-menu-wrap">
-                        <button class="action-kebab" onclick="toggleMenu(this)" title="Actions">
+                        <button class="action-kebab" onclick="toggleMenu(this, event)" title="Actions">
                             <span></span><span></span><span></span>
                         </button>
                         <div class="action-dropdown">
@@ -807,7 +807,8 @@ document.getElementById('deleteEquipmentModal').addEventListener('click', functi
     if (e.target === this) closeDeleteEquipmentModal();
 });
 
-function toggleMenu(btn) {
+function toggleMenu(btn, event) {
+    event.stopPropagation();
     const wrap = btn.closest('.action-menu-wrap');
     const drop = wrap.querySelector('.action-dropdown');
     const isOpen = drop.classList.contains('open');
@@ -815,19 +816,14 @@ function toggleMenu(btn) {
     if (!isOpen) {
         drop.classList.add('open');
         btn.classList.add('open');
-        // Open upward near viewport bottom
-        const rect = drop.getBoundingClientRect();
-        if (rect.bottom > window.innerHeight - 16) {
-            drop.style.top  = 'auto';
-            drop.style.bottom = 'calc(100% + 6px)';
-        } else {
-            drop.style.top  = '';
-            drop.style.bottom = '';
-        }
     }
 }
 function closeAllMenus() {
-    document.querySelectorAll('.action-dropdown.open').forEach(d => d.classList.remove('open'));
+    document.querySelectorAll('.action-dropdown.open').forEach(d => {
+        d.classList.remove('open');
+        d.style.top = '';
+        d.style.left = '';
+    });
     document.querySelectorAll('.action-kebab.open').forEach(b => b.classList.remove('open'));
 }
 document.addEventListener('click', function(e) {

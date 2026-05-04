@@ -99,8 +99,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_res'])) {
     mysqli_stmt_bind_param($stmt_insert, 'iis', $equipment_id, $user_id, $res_date);
 
     if (mysqli_stmt_execute($stmt_insert)) {
+        $new_reservation_id = mysqli_insert_id($conn);
         mysqli_stmt_close($stmt_insert);
-        echo json_encode(['success' => true]);
+        echo json_encode(['success' => true, 'reservation_id' => $new_reservation_id]);
     } else {
         $err = mysqli_stmt_error($stmt_insert);
         mysqli_stmt_close($stmt_insert);
@@ -299,6 +300,8 @@ $eventsCount = (int)(mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS 
                         <span class="reservation-pill-active">Already Reserved</span>
                     <?php else: ?>
                         <button class="reservation-btn-reserve"
+                            data-id="<?php echo $equipmentId; ?>"
+                            data-name="<?php echo $resourceName; ?>"
                             onclick="openReserveModal(<?php echo $equipmentId;?>, '<?php echo $resourceName;?>', '<?php echo $categoryName;?>')">
                             <svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M580-240q-42 0-71-29t-29-71q0-42 29-71t71-29q42 0 71 29t29 71q0 42-29 71t-71 29ZM200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Zm0 0v-80 80Z"/></svg>
                             Reserve
@@ -465,8 +468,6 @@ function openReserveModal(id, name, category) {
     btn.disabled = false;
     btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg> Submit Request';
     document.getElementById('reserveModal').classList.add('active');
-    // Focus date input
-    reserveDateInput?.focus();
 }
 
 function closeReserveModal() {
@@ -519,7 +520,6 @@ document.getElementById('confirmActionProceedBtn').addEventListener('click', fun
 // Open picker on date input
 if (reserveDateInput) {
     reserveDateInput.addEventListener('click', triggerDatePicker);
-    reserveDateInput.addEventListener('focus', triggerDatePicker);
     reserveDateInput.addEventListener('keydown', function(e) {
         if (e.key === 'Enter' || e.key === ' ') {
             triggerDatePicker();
@@ -542,8 +542,10 @@ function submitReservation() {
     btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor" style="animation:spin 0.8s linear infinite"><path d="M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q17 0 28.5 11.5T520-840q0 17-11.5 28.5T480-800q-133 0-226.5 93.5T160-480q0 133 93.5 226.5T480-160q133 0 226.5-93.5T800-480q0-17 11.5-28.5T840-520q17 0 28.5 11.5T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z"/></svg> Submitting…';
     msgEl.textContent = '';
 
+    const currentEquipId = _reserveId;
+
     const form = new FormData();
-    form.append('equipment_id', _reserveId);
+    form.append('equipment_id', currentEquipId);
     form.append('res_date', dateVal);
     form.append('submit_res', '1');
     form.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
@@ -554,6 +556,22 @@ function submitReservation() {
             if (data.success) {
                 closeReserveModal();
                 showToast();
+
+                // Instantly swap Reserve button → Cancel button without reload
+                const reserveBtn = document.querySelector(`button.reservation-btn-reserve[data-id="${currentEquipId}"]`);
+                if (reserveBtn) {
+                    const resId = data.reservation_id ?? null;
+                    const equipName = reserveBtn.getAttribute('data-name') || document.getElementById('modalEquipmentName').textContent;
+                    const td = reserveBtn.closest('td');
+                    if (td) {
+                        if (resId) {
+                            td.innerHTML = `<button class="reservation-btn-cancel" onclick="cancelExistingReservation(${resId}, '${equipName.replace(/'/g,"\\'")}')">Cancel</button>`;
+                        } else {
+                            // No reservation_id returned — show pending pill and reload in background
+                            td.innerHTML = `<span class="reservation-pill-active">Pending…</span>`;
+                        }
+                    }
+                }
             } else {
                 msgEl.textContent = data.message || 'Failed to submit reservation.';
                 btn.disabled = false;

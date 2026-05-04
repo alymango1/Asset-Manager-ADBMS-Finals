@@ -63,20 +63,6 @@ html, body {
 }
 
 
-/* ── Glow — mirrored to bottom-right ── */
-.bg-glow {
-    position: fixed;
-    bottom: -100px;
-    right: 340px;                         /* mirrored: right instead of left */
-    width: 480px;
-    height: 480px;
-    background: radial-gradient(circle, rgba(200,16,46,0.14) 0%, transparent 65%);
-    z-index: 2;
-    pointer-events: none;
-}
-
-
-/* ── Scanlines ── */
 .bg-scanlines {
     position: fixed;
     inset: 0;
@@ -92,7 +78,7 @@ html, body {
 }
 
 
-/* ── Corner Accents ── */
+
 .corner {
     position: fixed;
     width: 20px;
@@ -101,7 +87,7 @@ html, body {
     opacity: 0.35;
 }
 
-/* mirrored: top-right corner accent */
+
 .corner-tr {
     top: 22px;
     right: 22px;
@@ -109,7 +95,7 @@ html, body {
     border-right: 1px solid var(--red);
 }
 
-/* mirrored: bottom-left corner accent */
+
 .corner-bl {
     bottom: 22px;
     left: 22px;
@@ -118,7 +104,7 @@ html, body {
 }
 
 
-/* ── Layout Wrapper ── */
+
 .login-wrapper {
     position: fixed;
     inset: 0;
@@ -155,7 +141,7 @@ html, body {
 }
 
 
-/* ── Brand ── */
+
 .login-brand {
     display: flex;
     align-items: center;
@@ -442,7 +428,7 @@ html, body {
     position: absolute;
     animation: riseIn 1s cubic-bezier(.16,1,.3,1) both 0.25s;
     text-align: left;                    /* mirrored: left-aligned text */
-    bottom: 65px;
+    bottom: 23px;
     left: 40px;                          /* mirrored: anchored to left */
 }
 

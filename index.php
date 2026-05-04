@@ -79,7 +79,7 @@
           </div>
 
           <div class="card-cta">Sign in as Admin</div>
-          <div class="card-num">01</div>
+          <div class="card-num"></div>
         </a>
 
         <!-- Faculty -->
@@ -110,7 +110,7 @@
           </div>
 
           <div class="card-cta">Sign in as Faculty</div>
-          <div class="card-num">02</div>
+          <div class="card-num"></div>
         </a>
 
       </div>

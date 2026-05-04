@@ -131,8 +131,8 @@ $countCompleted = (int)(mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) 
                     <td><?php echo htmlspecialchars($row['categories'] ?? 'N/A'); ?></td>
                     <td><?php echo htmlspecialchars(date('M j, Y g:i A', strtotime($row['created_at']))); ?></td>
                     <td><?php echo htmlspecialchars(date('M j, Y', strtotime($row['reserved_date']))); ?></td>
-                    <td class="status <?php echo strtolower(str_replace(' ', '-', $row['status'])); ?>">
-                        <span class="status-pill"><?php echo htmlspecialchars(strtoupper($row['status'])); ?></span>
+                    <td class="status">
+                        <span class="status-pill <?php echo strtolower(str_replace(' ', '-', $row['status'])); ?>"><?php echo htmlspecialchars(strtoupper($row['status'])); ?></span>
                     </td>
                     <td class="actions">
                         <?php if ($row['status'] === 'pending'): ?>
@@ -257,4 +257,3 @@ function cancelExistingReservation(reservationId, equipmentName) {
 </script>
 </body>
 </html>
-

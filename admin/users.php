@@ -73,6 +73,85 @@ if (isset($_POST['create_user'])) {
     }
 }
 
+// ── Edit User (inline modal POST) ──────────────────────────────────────────
+$editUserMessage     = '';
+$editUserMessageType = '';
+$openEditUserModal   = false;
+$editUserData        = null; // pre-filled row for the modal
+
+if (isset($_POST['edit_user'])) {
+    $openEditUserModal = true;
+
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        $editUserMessage     = "Invalid request. Please try again.";
+        $editUserMessageType = 'error';
+    } else {
+        $editId       = isset($_POST['edit_id']) ? (int)$_POST['edit_id'] : 0;
+        $editFullName = trim($_POST['edit_full_name']  ?? '');
+        $editUsername = trim($_POST['edit_username']   ?? '');
+        $editRole     = trim($_POST['edit_role']       ?? '');
+        $editPassword = trim($_POST['edit_password']   ?? '');
+        $allowedRoles = ['admin', 'staff'];
+
+        // Keep form values for re-population on error
+        $editUserData = [
+            'user_id'   => $editId,
+            'full_name' => $editFullName,
+            'username'  => $editUsername,
+            'roles'     => $editRole,
+        ];
+
+        if ($editId <= 0) {
+            $editUserMessage = "Invalid user."; $editUserMessageType = 'error';
+        } elseif ($editFullName === '') {
+            $editUserMessage = "Full name cannot be empty."; $editUserMessageType = 'error';
+        } elseif ($editUsername === '') {
+            $editUserMessage = "Username cannot be empty."; $editUserMessageType = 'error';
+        } elseif (!in_array($editRole, $allowedRoles, true)) {
+            $editUserMessage = "Invalid role selected."; $editUserMessageType = 'error';
+        } else {
+            $dup = mysqli_prepare($conn, "SELECT user_id FROM users WHERE username = ? AND user_id != ?");
+            mysqli_stmt_bind_param($dup, 'si', $editUsername, $editId);
+            mysqli_stmt_execute($dup);
+            mysqli_stmt_store_result($dup);
+            $isDup = mysqli_stmt_num_rows($dup) > 0;
+            mysqli_stmt_close($dup);
+
+            if ($isDup) {
+                $editUserMessage = "That username is already taken by another account.";
+                $editUserMessageType = 'error';
+            } else {
+                if ($editPassword !== '') {
+                    $hash = password_hash($editPassword, PASSWORD_BCRYPT);
+                    $upd  = mysqli_prepare($conn, "UPDATE users SET full_name=?, username=?, password=?, roles=? WHERE user_id=?");
+                    mysqli_stmt_bind_param($upd, 'ssssi', $editFullName, $editUsername, $hash, $editRole, $editId);
+                } else {
+                    $upd = mysqli_prepare($conn, "UPDATE users SET full_name=?, username=?, roles=? WHERE user_id=?");
+                    mysqli_stmt_bind_param($upd, 'sssi', $editFullName, $editUsername, $editRole, $editId);
+                }
+                if (mysqli_stmt_execute($upd)) {
+                    mysqli_stmt_close($upd);
+                    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+                    $_SESSION['success_edit'] = "User updated successfully.";
+                    header("Location: users.php");
+                    exit();
+                } else {
+                    $editUserMessage = "Error: " . mysqli_stmt_error($upd);
+                    $editUserMessageType = 'error';
+                    mysqli_stmt_close($upd);
+                }
+            }
+        }
+    }
+}
+
+// Flash message from redirect
+$editSuccessMsg = '';
+if (isset($_SESSION['success_edit'])) {
+    $editSuccessMsg = $_SESSION['success_edit'];
+    unset($_SESSION['success_edit']);
+}
+
 $totalUsers = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM users"))['total'];
 $totalAdmins = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM users WHERE roles='admin'"))['total'];
 $totalStaff = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM users WHERE roles='staff'"))['total'];
@@ -253,6 +332,9 @@ $filterString = count($queryParams) ? '&' . implode('&', $queryParams) : '';
             <?php if (isset($_SESSION['success'])): ?>
                 <div class="message-box success"><?php echo htmlspecialchars($_SESSION['success']); unset($_SESSION['success']); ?></div>
             <?php endif; ?>
+            <?php if ($editSuccessMsg !== ''): ?>
+                <div class="message-box success"><?php echo htmlspecialchars($editSuccessMsg); ?></div>
+            <?php endif; ?>
 
             <table class="users-table">
                 <thead>
@@ -282,7 +364,7 @@ $filterString = count($queryParams) ? '&' . implode('&', $queryParams) : '';
                                 </td>
                                 <td>
                                     <div class="table-actions">
-                                        <a href="edit_user.php?id=<?php echo $row['user_id']; ?>" class="btn btn-edit">Edit</a>
+                                        <button type="button" class="btn btn-edit" onclick="openEditUserModal(<?php echo $row['user_id']; ?>, <?php echo htmlspecialchars(json_encode($row['full_name'])); ?>, <?php echo htmlspecialchars(json_encode($row['username'])); ?>, <?php echo htmlspecialchars(json_encode($row['roles'])); ?>)">Edit</button>
                                         <form method="POST" action="../config/delete_user.php" class="delete-form">
                                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                             <input type="hidden" name="id" value="<?php echo $row['user_id']; ?>">
@@ -373,56 +455,335 @@ $filterString = count($queryParams) ? '&' . implode('&', $queryParams) : '';
     </section>
 </main>
 
+<!-- ══════════════ CREATE USER MODAL — Premium Redesign ══════════════ -->
 <div class="modal-overlay<?php echo $openAddUserModal ? ' active' : ''; ?>" id="addUserModal">
-    <div class="modal-card">
-        <div class="modal-head">
-            <div>
-                <p class="modal-kicker">User Access</p>
-                <h3>Create User Account</h3>
-                <p>Add a new admin or staff account securely.</p>
+    <div class="cau-shell">
+
+        <!-- Left decorative panel -->
+        <div class="cau-panel">
+            <div class="cau-panel-inner">
+                <div class="cau-panel-orb cau-panel-orb--1"></div>
+                <div class="cau-panel-orb cau-panel-orb--2"></div>
+                <div class="cau-panel-orb cau-panel-orb--3"></div>
+                <div class="cau-panel-badge">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <line x1="19" y1="8" x2="19" y2="14"/>
+                        <line x1="22" y1="11" x2="16" y2="11"/>
+                    </svg>
+                </div>
+                <div class="cau-panel-text">
+                    <p class="cau-panel-eyebrow">User Access</p>
+                    <h2 class="cau-panel-title">New<br>Account</h2>
+                    <p class="cau-panel-desc">Create a secure admin or staff account with role-based permissions.</p>
+                </div>
+                <ul class="cau-panel-checklist">
+                    <li>
+                        <span class="cau-check-icon">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        </span>
+                        Minimum 8-character password
+                    </li>
+                    <li>
+                        <span class="cau-check-icon">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        </span>
+                        Role-based access control
+                    </li>
+                    <li>
+                        <span class="cau-check-icon">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        </span>
+                        Bcrypt-encrypted credentials
+                    </li>
+                </ul>
             </div>
-            <button type="button" class="modal-close" id="closeAddUserModal" aria-label="Close">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 -960 960 960" fill="currentColor"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/></svg>
-            </button>
         </div>
 
-        <?php if ($addUserMessage !== ''): ?>
-            <div class="modal-message <?php echo $addUserMessageType === 'error' ? 'error' : 'success'; ?>">
-                <?php echo htmlspecialchars($addUserMessage); ?>
-            </div>
-        <?php endif; ?>
-
-        <form method="POST" action="users.php" class="add-user-form">
-            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-
-            <div class="input-group">
-                <label for="create_full_name">Full Name</label>
-                <input id="create_full_name" type="text" name="full_name" placeholder="Enter full name" value="<?php echo htmlspecialchars($_POST['full_name'] ?? ''); ?>" required>
-            </div>
-            <div class="input-group">
-                <label for="create_username">Username</label>
-                <input id="create_username" type="text" name="username" placeholder="Enter username" value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>" required>
-            </div>
-            <div class="input-group">
-                <label for="create_password">Password</label>
-                <input id="create_password" type="password" name="password" placeholder="Enter password (min. 8 characters)" minlength="8" required>
-            </div>
-            <div class="input-group">
-                <label for="create_role">Role</label>
-                <select id="create_role" name="role" required>
-                    <option value="">Select Role</option>
-                    <option value="admin" <?php if (($_POST['role'] ?? '') === 'admin') echo 'selected'; ?>>Admin</option>
-                    <option value="staff" <?php if (($_POST['role'] ?? '') === 'staff') echo 'selected'; ?>>Staff</option>
-                </select>
+        <!-- Right form panel -->
+        <div class="cau-form-panel">
+            <div class="cau-form-header">
+                <div class="cau-form-header-text">
+                    <p class="cau-form-kicker">BSU Asset Manager</p>
+                    <h3 class="cau-form-title">Create User Account</h3>
+                </div>
+                <button type="button" class="cau-close-btn" id="closeAddUserModal" aria-label="Close">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 -960 960 960" fill="currentColor"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/></svg>
+                </button>
             </div>
 
-            <div class="modal-actions">
-                <button type="button" class="btn-secondary" id="cancelAddUser">Cancel</button>
-                <button type="submit" name="create_user" class="btn-primary">Create User</button>
-            </div>
-        </form>
+            <?php if ($addUserMessage !== ''): ?>
+                <div class="cau-alert <?php echo $addUserMessageType === 'error' ? 'cau-alert--error' : 'cau-alert--success'; ?>">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <?php if ($addUserMessageType === 'error'): ?>
+                            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                        <?php else: ?>
+                            <polyline points="20 6 9 17 4 12"/>
+                        <?php endif; ?>
+                    </svg>
+                    <?php echo htmlspecialchars($addUserMessage); ?>
+                </div>
+            <?php endif; ?>
+
+            <form method="POST" action="users.php" class="cau-form" id="createUserForm" onsubmit="return cauValidate()">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+
+                <!-- Row 1: Full name + Username -->
+                <div class="cau-row">
+                    <div class="cau-field">
+                        <label class="cau-label" for="create_full_name">
+                            <span class="cau-label-icon">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                            </span>
+                            Full Name
+                        </label>
+                        <input class="cau-input" id="create_full_name" type="text" name="full_name"
+                               placeholder="e.g. Juan dela Cruz"
+                               value="<?php echo htmlspecialchars($_POST['full_name'] ?? ''); ?>" required
+                               oninput="cauLiveAvatar(this.value)">
+                    </div>
+                    <div class="cau-field">
+                        <label class="cau-label" for="create_username">
+                            <span class="cau-label-icon">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 21v-2a4 4 0 0 0-3-3.85"/></svg>
+                            </span>
+                            Username
+                        </label>
+                        <input class="cau-input" id="create_username" type="text" name="username"
+                               placeholder="e.g. jdelacruz"
+                               value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>" required>
+                    </div>
+                </div>
+
+                <!-- Row 2: Password + Confirm -->
+                <div class="cau-row">
+                    <div class="cau-field">
+                        <label class="cau-label" for="create_password">
+                            <span class="cau-label-icon">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                            </span>
+                            Password
+                        </label>
+                        <div class="cau-input-wrap">
+                            <input class="cau-input" id="create_password" type="password" name="password"
+                                   placeholder="Min. 8 characters" minlength="8" required
+                                   oninput="cauCheckMatch(); cauStrength(this.value)">
+                            <button type="button" class="cau-eye-btn" onclick="cauToggle('create_password','cauEye1')" title="Show/hide password">
+                                <svg id="cauEye1" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <!-- Password strength bar -->
+                        <div class="cau-strength-wrap" id="cauStrengthWrap">
+                            <div class="cau-strength-bar">
+                                <div class="cau-strength-fill" id="cauStrengthFill"></div>
+                            </div>
+                            <span class="cau-strength-label" id="cauStrengthLabel"></span>
+                        </div>
+                    </div>
+                    <div class="cau-field">
+                        <label class="cau-label">
+                            <span class="cau-label-icon">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                            </span>
+                            Confirm Password
+                        </label>
+                        <div class="cau-input-wrap">
+                            <input class="cau-input" id="cau_confirm" type="password"
+                                   placeholder="Repeat password"
+                                   oninput="cauCheckMatch()">
+                            <button type="button" class="cau-eye-btn" onclick="cauToggle('cau_confirm','cauEye2')" title="Show/hide password">
+                                <svg id="cauEye2" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="cau-match-hint" id="cauMatchHint"></div>
+                    </div>
+                </div>
+
+                <!-- Row 3: Role (full width) -->
+                <div class="cau-field cau-field--full">
+                    <label class="cau-label" for="create_role">
+                        <span class="cau-label-icon">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        </span>
+                        Role
+                    </label>
+                    <!-- Custom role selector cards -->
+                    <div class="cau-role-group">
+                        <label class="cau-role-card" id="cau-role-admin">
+                            <input type="radio" name="role" value="admin" <?php if (($_POST['role'] ?? '') === 'admin') echo 'checked'; ?> required>
+                            <span class="cau-role-card-icon cau-role-card-icon--admin">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg>
+                            </span>
+                            <span class="cau-role-card-body">
+                                <strong>Admin</strong>
+                                <span>Full system access</span>
+                            </span>
+                            <span class="cau-role-check">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                            </span>
+                        </label>
+                        <label class="cau-role-card" id="cau-role-staff">
+                            <input type="radio" name="role" value="staff" <?php if (($_POST['role'] ?? '') === 'staff') echo 'checked'; ?>>
+                            <span class="cau-role-card-icon cau-role-card-icon--staff">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                            </span>
+                            <span class="cau-role-card-body">
+                                <strong>Staff</strong>
+                                <span>Limited access</span>
+                            </span>
+                            <span class="cau-role-check">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Divider -->
+                <div class="cau-divider"></div>
+
+                <!-- Actions -->
+                <div class="cau-actions">
+                    <!-- Live avatar preview -->
+                    <div class="cau-avatar-preview" id="cauAvatarPreview">
+                        <div class="cau-avatar-ring" id="cauAvatarRing">
+                            <span id="cauAvatarInitials">?</span>
+                        </div>
+                        <span class="cau-avatar-name" id="cauAvatarName">New User</span>
+                    </div>
+                    <div class="cau-actions-btns">
+                        <button type="button" class="cau-btn-cancel" id="cancelAddUser">Cancel</button>
+                        <button type="submit" name="create_user" class="cau-btn-submit" id="cauSubmitBtn">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                                <circle cx="9" cy="7" r="4"/>
+                                <line x1="19" y1="8" x2="19" y2="14"/>
+                                <line x1="22" y1="11" x2="16" y2="11"/>
+                            </svg>
+                            Create Account
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
+
+<script>
+// ── Create-user modal helpers ──────────────────────────────────────
+function cauCheckMatch() {
+    const pw   = document.getElementById('create_password').value;
+    const cpw  = document.getElementById('cau_confirm').value;
+    const hint = document.getElementById('cauMatchHint');
+    const pwEl = document.getElementById('create_password');
+    const cpwEl= document.getElementById('cau_confirm');
+    const btn  = document.getElementById('cauSubmitBtn');
+    if (cpw === '') {
+        hint.textContent = ''; hint.className = 'cau-match-hint';
+        pwEl.classList.remove('cau-err','cau-ok');
+        cpwEl.classList.remove('cau-err','cau-ok');
+        btn.disabled = false; return;
+    }
+    if (pw === cpw) {
+        hint.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Passwords match';
+        hint.className = 'cau-match-hint match';
+        pwEl.classList.replace('cau-err','cau-ok') || pwEl.classList.add('cau-ok');
+        cpwEl.classList.replace('cau-err','cau-ok') || cpwEl.classList.add('cau-ok');
+        btn.disabled = false;
+    } else {
+        hint.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Passwords do not match';
+        hint.className = 'cau-match-hint no-match';
+        pwEl.classList.replace('cau-ok','cau-err') || pwEl.classList.add('cau-err');
+        cpwEl.classList.replace('cau-ok','cau-err') || cpwEl.classList.add('cau-err');
+        btn.disabled = true;
+    }
+}
+
+function cauValidate() {
+    const pw  = document.getElementById('create_password').value;
+    const cpw = document.getElementById('cau_confirm').value;
+    if (pw !== cpw) {
+        document.getElementById('cauMatchHint').innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Passwords do not match';
+        document.getElementById('cauMatchHint').className = 'cau-match-hint no-match';
+        return false;
+    }
+    return true;
+}
+
+function cauToggle(inputId, iconId) {
+    const inp  = document.getElementById(inputId);
+    const icon = document.getElementById(iconId);
+    const show = inp.type === 'password';
+    inp.type = show ? 'text' : 'password';
+    icon.innerHTML = show
+        ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>'
+        : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+}
+
+function cauStrength(pw) {
+    const wrap  = document.getElementById('cauStrengthWrap');
+    const fill  = document.getElementById('cauStrengthFill');
+    const label = document.getElementById('cauStrengthLabel');
+    if (!pw) { wrap.style.opacity = '0'; return; }
+    wrap.style.opacity = '1';
+    let score = 0;
+    if (pw.length >= 8)  score++;
+    if (pw.length >= 12) score++;
+    if (/[A-Z]/.test(pw)) score++;
+    if (/[0-9]/.test(pw)) score++;
+    if (/[^A-Za-z0-9]/.test(pw)) score++;
+    const levels = [
+        { pct: '20%', color: '#e53e3e', text: 'Very weak'  },
+        { pct: '40%', color: '#dd6b20', text: 'Weak'       },
+        { pct: '60%', color: '#d69e2e', text: 'Fair'       },
+        { pct: '80%', color: '#38a169', text: 'Strong'     },
+        { pct: '100%',color: '#276749', text: 'Very strong'},
+    ];
+    const l = levels[Math.max(0, score - 1)] || levels[0];
+    fill.style.width = l.pct;
+    fill.style.background = l.color;
+    label.textContent = l.text;
+    label.style.color = l.color;
+}
+
+function cauLiveAvatar(name) {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    const initials = ((parts[0]?.[0] || '') + (parts[1]?.[0] || parts[0]?.[1] || '')).toUpperCase() || '?';
+    document.getElementById('cauAvatarInitials').textContent = initials;
+    document.getElementById('cauAvatarName').textContent = name.trim() || 'New User';
+}
+
+// Open/close
+document.getElementById('addUserModal').addEventListener('click', function(e) {
+    if (e.target === this) closeAddUserModalFn();
+});
+document.getElementById('closeAddUserModal').addEventListener('click', closeAddUserModalFn);
+document.getElementById('cancelAddUser').addEventListener('click', closeAddUserModalFn);
+
+function closeAddUserModalFn() {
+    document.getElementById('addUserModal').classList.remove('active');
+    document.body.classList.remove('modal-open');
+}
+
+// Keyboard close (merged with existing escape listeners at bottom if needed)
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && document.getElementById('addUserModal').classList.contains('active')) {
+        closeAddUserModalFn();
+    }
+});
+
+// FAB + action item open
+document.querySelectorAll('.js-open-add-user').forEach(function(el) {
+    el.addEventListener('click', function() {
+        document.getElementById('addUserModal').classList.add('active');
+        document.body.classList.add('modal-open');
+    });
+});
+</script>
 
 <div class="modal-overlay" id="deleteUserModal">
     <div class="modal-box confirm-modern">
@@ -505,6 +866,419 @@ document.getElementById('deleteUserModal').addEventListener('click', function(e)
 });
 </script>
 
+
+<!-- ══════════════ EDIT USER MODAL — Premium Redesign ══════════════ -->
+<div class="modal-overlay<?php echo $openEditUserModal ? ' active' : ''; ?>" id="editUserModal">
+    <div class="euu-shell">
+
+        <!-- Left panel: identity + context -->
+        <div class="euu-panel">
+            <div class="euu-panel-inner">
+                <div class="euu-panel-orb euu-panel-orb--1"></div>
+                <div class="euu-panel-orb euu-panel-orb--2"></div>
+                <div class="euu-panel-orb euu-panel-orb--3"></div>
+
+                <!-- Live avatar -->
+                <div class="euu-avatar-wrap">
+                    <div class="euu-avatar-ring" id="euAvatarRing">
+                        <span id="euAvatarInitials">?</span>
+                    </div>
+                    <div class="euu-avatar-glow"></div>
+                </div>
+
+                <div class="euu-panel-identity">
+                    <p class="euu-panel-eyebrow">Editing account</p>
+                    <h2 class="euu-panel-name" id="euPanelName">—</h2>
+                    <p class="euu-panel-meta" id="euPanelMeta">User ID #—</p>
+                </div>
+
+                <!-- Role badge -->
+                <div class="euu-current-role">
+                    <span class="euu-role-label">Current Role</span>
+                    <span class="euu-role-pill" id="euPanelRoleBadge">—</span>
+                </div>
+
+                <!-- Change summary -->
+                <div class="euu-change-summary" id="euChangeSummary">
+                    <p class="euu-change-title">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        No changes yet
+                    </p>
+                    <ul class="euu-change-list" id="euChangeList"></ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right form panel -->
+        <div class="euu-form-panel">
+            <div class="euu-form-header">
+                <div class="euu-form-header-text">
+                    <p class="euu-form-kicker">BSU Asset Manager</p>
+                    <h3 class="euu-form-title">Edit User Account</h3>
+                </div>
+                <button type="button" class="euu-close-btn" onclick="closeEditUserModal()" aria-label="Close">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 -960 960 960" fill="currentColor"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/></svg>
+                </button>
+            </div>
+
+            <?php if ($editUserMessage !== ''): ?>
+                <div class="euu-alert <?php echo $editUserMessageType === 'error' ? 'euu-alert--error' : 'euu-alert--success'; ?>">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <?php if ($editUserMessageType === 'error'): ?>
+                            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                        <?php else: ?>
+                            <polyline points="20 6 9 17 4 12"/>
+                        <?php endif; ?>
+                    </svg>
+                    <?php echo htmlspecialchars($editUserMessage); ?>
+                </div>
+            <?php endif; ?>
+
+            <form method="POST" action="users.php" class="euu-form" id="editUserForm" onsubmit="return euValidate()">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                <input type="hidden" name="edit_id" id="euHiddenId" value="<?php echo htmlspecialchars($editUserData['user_id'] ?? ''); ?>">
+
+                <!-- Row 1: Full Name + Username -->
+                <div class="euu-row">
+                    <div class="euu-field">
+                        <label class="euu-label" for="euFullName">
+                            <span class="euu-label-icon">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                            </span>
+                            Full Name
+                        </label>
+                        <input class="euu-input" type="text" name="edit_full_name" id="euFullName"
+                               placeholder="Full name" required
+                               value="<?php echo htmlspecialchars($editUserData['full_name'] ?? ''); ?>"
+                               oninput="euLiveUpdate()">
+                    </div>
+                    <div class="euu-field">
+                        <label class="euu-label" for="euUsername">
+                            <span class="euu-label-icon">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                            </span>
+                            Username
+                        </label>
+                        <input class="euu-input" type="text" name="edit_username" id="euUsername"
+                               placeholder="Username" required
+                               value="<?php echo htmlspecialchars($editUserData['username'] ?? ''); ?>"
+                               oninput="euTrackChanges()">
+                    </div>
+                </div>
+
+                <!-- Row 2: Role (full width, card select) -->
+                <div class="euu-field euu-field--full">
+                    <label class="euu-label">
+                        <span class="euu-label-icon">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        </span>
+                        Role
+                    </label>
+                    <div class="euu-role-group" id="euRoleGroup">
+                        <label class="euu-role-card" id="euu-role-admin">
+                            <input type="radio" name="edit_role" id="euRoleAdmin" value="admin"
+                                   <?php if (($editUserData['roles'] ?? '') === 'admin') echo 'checked'; ?>
+                                   onchange="euTrackChanges(); euUpdatePanelRole('admin')">
+                            <span class="euu-role-card-icon euu-role-card-icon--admin">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg>
+                            </span>
+                            <span class="euu-role-card-body">
+                                <strong>Admin</strong>
+                                <span>Full system access</span>
+                            </span>
+                            <span class="euu-role-check">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                            </span>
+                        </label>
+                        <label class="euu-role-card" id="euu-role-staff">
+                            <input type="radio" name="edit_role" id="euRoleStaff" value="staff"
+                                   <?php if (($editUserData['roles'] ?? '') === 'staff') echo 'checked'; ?>
+                                   onchange="euTrackChanges(); euUpdatePanelRole('staff')">
+                            <span class="euu-role-card-icon euu-role-card-icon--staff">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                            </span>
+                            <span class="euu-role-card-body">
+                                <strong>Staff</strong>
+                                <span>Limited access</span>
+                            </span>
+                            <span class="euu-role-check">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Password section -->
+                <div class="euu-pw-section">
+                    <div class="euu-pw-section-label">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        Change Password
+                        <span class="euu-pw-optional">optional — leave blank to keep current</span>
+                    </div>
+                    <div class="euu-row">
+                        <div class="euu-field">
+                            <label class="euu-label" for="euPassword">New Password</label>
+                            <div class="euu-input-wrap">
+                                <input class="euu-input" type="password" name="edit_password" id="euPassword"
+                                       placeholder="Enter new password"
+                                       autocomplete="new-password"
+                                       oninput="euCheckMatch(); euTrackChanges()">
+                                <button type="button" class="euu-eye-btn" onclick="euTogglePw('euPassword','euEyeIcon')" title="Show/hide">
+                                    <svg id="euEyeIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="euu-field">
+                            <label class="euu-label" for="euConfirmPassword">Confirm Password</label>
+                            <div class="euu-input-wrap">
+                                <input class="euu-input" type="password" id="euConfirmPassword"
+                                       placeholder="Repeat new password"
+                                       autocomplete="new-password"
+                                       oninput="euCheckMatch()">
+                                <button type="button" class="euu-eye-btn" onclick="euTogglePw('euConfirmPassword','euEyeIcon2')" title="Show/hide">
+                                    <svg id="euEyeIcon2" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="euu-match-hint" id="euMatchHint"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Divider -->
+                <div class="euu-divider"></div>
+
+                <!-- Actions -->
+                <div class="euu-actions">
+                    <div class="euu-save-status" id="euSaveStatus">
+                        <span class="euu-status-dot" id="euStatusDot"></span>
+                        <span id="euStatusText">Ready to edit</span>
+                    </div>
+                    <div class="euu-actions-btns">
+                        <button type="button" class="euu-btn-cancel" onclick="closeEditUserModal()">Cancel</button>
+                        <button type="submit" name="edit_user" class="euu-btn-save" id="euSaveBtn">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                                <polyline points="17 21 17 13 7 13 7 21"/>
+                                <polyline points="7 3 7 8 15 8"/>
+                            </svg>
+                            Save Changes
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// ── Edit-user modal — data + state ────────────────────────────────
+let _euOriginal = { fullName: '', username: '', role: '' };
+
+function openEditUserModal(id, fullName, username, role) {
+    // Store originals for change tracking
+    _euOriginal = { fullName, username, role };
+
+    // Populate hidden + inputs
+    document.getElementById('euHiddenId').value  = id;
+    document.getElementById('euFullName').value  = fullName;
+    document.getElementById('euUsername').value  = username;
+    document.getElementById('euPassword').value  = '';
+    document.getElementById('euConfirmPassword').value = '';
+
+    // Reset match hint + input states
+    document.getElementById('euMatchHint').textContent = '';
+    document.getElementById('euMatchHint').className   = 'euu-match-hint';
+    document.getElementById('euPassword').classList.remove('euu-err','euu-ok');
+    document.getElementById('euConfirmPassword').classList.remove('euu-err','euu-ok');
+
+    // Role radio
+    const adminR = document.getElementById('euRoleAdmin');
+    const staffR = document.getElementById('euRoleStaff');
+    adminR.checked = (role === 'admin');
+    staffR.checked = (role === 'staff');
+
+    // Panel: avatar
+    euUpdatePanelAvatar(fullName);
+
+    // Panel: name + meta
+    document.getElementById('euPanelName').textContent = fullName || '—';
+    document.getElementById('euPanelMeta').textContent = 'User ID #' + id;
+
+    // Panel: role badge
+    euUpdatePanelRole(role);
+
+    // Reset change summary
+    euResetChangeSummary();
+
+    // Status
+    euSetStatus('ready');
+
+    // Open
+    document.getElementById('editUserModal').classList.add('active');
+    document.body.classList.add('modal-open');
+}
+
+function closeEditUserModal() {
+    document.getElementById('editUserModal').classList.remove('active');
+    document.body.classList.remove('modal-open');
+}
+
+// Panel helpers
+function euUpdatePanelAvatar(name) {
+    const parts    = (name || '').trim().split(/\s+/).filter(Boolean);
+    const initials = ((parts[0]?.[0] || '') + (parts[1]?.[0] || parts[0]?.[1] || '')).toUpperCase() || '?';
+    document.getElementById('euAvatarInitials').textContent = initials;
+}
+
+function euUpdatePanelRole(role) {
+    const badge = document.getElementById('euPanelRoleBadge');
+    badge.textContent = role ? (role.charAt(0).toUpperCase() + role.slice(1)) : '—';
+    badge.className   = 'euu-role-pill euu-role-pill--' + (role || 'none');
+}
+
+// Live name → avatar sync
+function euLiveUpdate() {
+    const name = document.getElementById('euFullName').value;
+    euUpdatePanelAvatar(name);
+    document.getElementById('euPanelName').textContent = name || '—';
+    euTrackChanges();
+}
+
+// Change tracker
+function euTrackChanges() {
+    const curName = document.getElementById('euFullName').value.trim();
+    const curUser = document.getElementById('euUsername').value.trim();
+    const curRole = document.querySelector('input[name="edit_role"]:checked')?.value || '';
+    const curPw   = document.getElementById('euPassword').value;
+
+    const changes = [];
+    if (curName !== _euOriginal.fullName) changes.push('Name updated');
+    if (curUser !== _euOriginal.username) changes.push('Username changed');
+    if (curRole !== _euOriginal.role)     changes.push('Role changed → ' + (curRole || '—'));
+    if (curPw !== '')                     changes.push('New password set');
+
+    const summary   = document.getElementById('euChangeSummary');
+    const titleEl   = summary.querySelector('.euu-change-title');
+    const listEl    = document.getElementById('euChangeList');
+
+    if (changes.length === 0) {
+        titleEl.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> No changes yet';
+        listEl.innerHTML  = '';
+        summary.classList.remove('euu-change-summary--active');
+        euSetStatus('ready');
+    } else {
+        titleEl.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.08-4.73"/></svg> ' + changes.length + ' change' + (changes.length > 1 ? 's' : '') + ' pending';
+        listEl.innerHTML  = changes.map(c => '<li>' + c + '</li>').join('');
+        summary.classList.add('euu-change-summary--active');
+        euSetStatus('changed');
+    }
+}
+
+function euResetChangeSummary() {
+    const summary = document.getElementById('euChangeSummary');
+    summary.querySelector('.euu-change-title').innerHTML =
+        '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> No changes yet';
+    document.getElementById('euChangeList').innerHTML = '';
+    summary.classList.remove('euu-change-summary--active');
+}
+
+function euSetStatus(state) {
+    const dot  = document.getElementById('euStatusDot');
+    const text = document.getElementById('euStatusText');
+    if (state === 'ready') {
+        dot.className  = 'euu-status-dot euu-status-dot--ready';
+        text.textContent = 'Ready to edit';
+    } else if (state === 'changed') {
+        dot.className  = 'euu-status-dot euu-status-dot--changed';
+        text.textContent = 'Unsaved changes';
+    } else if (state === 'error') {
+        dot.className  = 'euu-status-dot euu-status-dot--error';
+        text.textContent = 'Fix errors above';
+    }
+}
+
+// Password match
+function euCheckMatch() {
+    const pw   = document.getElementById('euPassword').value;
+    const cpw  = document.getElementById('euConfirmPassword').value;
+    const hint = document.getElementById('euMatchHint');
+    const pwEl = document.getElementById('euPassword');
+    const cpwEl= document.getElementById('euConfirmPassword');
+    const btn  = document.getElementById('euSaveBtn');
+
+    if (pw === '' && cpw === '') {
+        hint.textContent = '';
+        hint.className   = 'euu-match-hint';
+        pwEl.classList.remove('euu-err','euu-ok');
+        cpwEl.classList.remove('euu-err','euu-ok');
+        btn.disabled = false;
+        return;
+    }
+    if (cpw === '') {
+        hint.textContent = '';
+        hint.className   = 'euu-match-hint';
+        return;
+    }
+    if (pw === cpw) {
+        hint.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Passwords match';
+        hint.className = 'euu-match-hint match';
+        pwEl.classList.replace('euu-err','euu-ok') || pwEl.classList.add('euu-ok');
+        cpwEl.classList.replace('euu-err','euu-ok') || cpwEl.classList.add('euu-ok');
+        btn.disabled = false;
+    } else {
+        hint.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Passwords do not match';
+        hint.className = 'euu-match-hint no-match';
+        pwEl.classList.replace('euu-ok','euu-err') || pwEl.classList.add('euu-err');
+        cpwEl.classList.replace('euu-ok','euu-err') || cpwEl.classList.add('euu-err');
+        btn.disabled = true;
+        euSetStatus('error');
+    }
+}
+
+function euValidate() {
+    const pw  = document.getElementById('euPassword').value;
+    const cpw = document.getElementById('euConfirmPassword').value;
+    if (pw !== '' && pw !== cpw) {
+        document.getElementById('euMatchHint').innerHTML =
+            '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Passwords do not match';
+        document.getElementById('euMatchHint').className = 'euu-match-hint no-match';
+        return false;
+    }
+    return true;
+}
+
+function euTogglePw(inputId, iconId) {
+    const inp  = document.getElementById(inputId);
+    const icon = document.getElementById(iconId);
+    const show = inp.type === 'password';
+    inp.type = show ? 'text' : 'password';
+    icon.innerHTML = show
+        ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>'
+        : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+}
+
+// Overlay click & keyboard close
+document.getElementById('editUserModal').addEventListener('click', function(e) {
+    if (e.target === this) closeEditUserModal();
+});
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && document.getElementById('editUserModal').classList.contains('active')) {
+        closeEditUserModal();
+    }
+});
+
+<?php if ($openEditUserModal && $editUserData): ?>
+openEditUserModal(
+    <?php echo (int)$editUserData['user_id']; ?>,
+    <?php echo json_encode($editUserData['full_name']); ?>,
+    <?php echo json_encode($editUserData['username']); ?>,
+    <?php echo json_encode($editUserData['roles']); ?>
+);
+<?php endif; ?>
+</script>
 </body>
 </html>
-

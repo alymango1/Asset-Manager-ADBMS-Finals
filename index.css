@@ -1,5 +1,4 @@
-
-    :root {
+:root {
       --crimson:        #9b1c1c;
       --crimson-deep:   #7f1d1d;
       --crimson-bright: #c0392b;
@@ -183,7 +182,7 @@
       align-items: center;
       justify-content: center;
       text-align: center;
-      padding: 64px 24px 48px;
+      padding: 28px 24px 24px;
     }
 
     .hero-eyebrow {
@@ -195,7 +194,7 @@
       letter-spacing: 0.22em;
       text-transform: uppercase;
       color: var(--gold);
-      margin-bottom: 30px;
+      margin-bottom: 16px;
       animation: fadeUp 0.8s 0.2s cubic-bezier(0.22,1,0.36,1) both;
     }
     .hero-eyebrow::before,
@@ -215,11 +214,11 @@
     .hero-title {
       font-family: 'Cormorant Garamond', serif;
       font-weight: 300;
-      font-size: clamp(2.5rem, 3.2vw, 6.5rem);
+      font-size: clamp(1.6rem, 2.2vw, 3.8rem);
       line-height: 1.0;
       letter-spacing: -0.02em;
       color: var(--ink);
-      margin-bottom: 6px;
+      margin-bottom: 4px;
       animation: fadeUp 0.9s 0.35s cubic-bezier(0.22,1,0.36,1) both;
     }
     .hero-title em {
@@ -233,29 +232,29 @@
     .hero-title-line2 {
       font-family: 'Cormorant Garamond', serif;
       font-weight: 600;
-      font-size: clamp(3.2rem, 7vw, 6.5rem);
+      font-size: clamp(2.2rem, 4.5vw, 4.5rem);
       line-height: 1.0;
       letter-spacing: -0.02em;
       color: var(--ink);
-      margin-bottom: 30px;
+      margin-bottom: 16px;
       animation: fadeUp 0.9s 0.45s cubic-bezier(0.22,1,0.36,1) both;
     }
 
     .hero-divider {
       width: 1px;
-      height: 48px;
+      height: 28px;
       background: linear-gradient(to bottom, transparent, var(--gold-light), transparent);
-      margin: 0 auto 30px;
+      margin: 0 auto 16px;
       animation: fadeUp 0.8s 0.55s cubic-bezier(0.22,1,0.36,1) both;
     }
 
     .hero-desc {
       max-width: 480px;
-      font-size: 0.88rem;
+      font-size: 0.82rem;
       font-weight: 300;
-      line-height: 1.85;
+      line-height: 1.7;
       color: var(--ink-dim);
-      margin-bottom: 64px;
+      margin-bottom: 28px;
       animation: fadeUp 0.8s 0.65s cubic-bezier(0.22,1,0.36,1) both;
     }
 
@@ -271,7 +270,7 @@
     .portal-card {
       position: relative;
       width: 300px;
-      padding: 40px 36px;
+      padding: 28px 30px;
       border-radius: 20px;
       text-decoration: none;
       color: var(--ink);
@@ -349,7 +348,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 24px;
+      margin-bottom: 14px;
     }
 
     .card-icon {
@@ -411,21 +410,21 @@
     .card-desc {
       font-size: 0.78rem;
       font-weight: 400;
-      line-height: 1.75;
+      line-height: 1.65;
       color: var(--ink-dim);
-      margin-bottom: 22px;
+      margin-bottom: 14px;
     }
 
     .card-divider {
       height: 1px;
       background: var(--border);
-      margin-bottom: 18px;
+      margin-bottom: 12px;
     }
 
     .card-features {
       display: flex;
       flex-direction: column;
-      gap: 9px;
+      gap: 6px;
     }
     .card-feature {
       display: flex;
@@ -455,7 +454,7 @@
       letter-spacing: 0.08em;
       text-transform: uppercase;
       cursor: pointer;
-      margin-top: 28px;
+      margin-top: 18px;
       transition: all 0.3s ease;
       text-decoration: none;
       text-align: center;
