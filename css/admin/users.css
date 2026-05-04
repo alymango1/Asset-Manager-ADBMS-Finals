@@ -1648,7 +1648,6 @@ body.modal-open {
 .euu-shell {
     display: flex;
     width: min(800px, 96vw);
-    max-height: calc(100vh - 40px);
     border-radius: 22px;
     overflow: hidden;
     box-shadow:
@@ -1879,7 +1878,6 @@ body.modal-open {
     background: #fff;
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
 }
 
 .euu-form-header {
