@@ -108,11 +108,18 @@ try {
     $conflict_stmt = mysqli_prepare($conn, "
         SELECT reservation_id FROM reservations
         WHERE equipment_id   = ?
-          AND status         = 'approved'
-          AND reserved_date  = ?
-          AND reservation_id != ?
+        AND status         = 'approved'
+        AND reserved_date  = ?
+        AND reservation_id != ?
+        AND NOT (reserved_end <= ? OR reserved_start >= ?)
     ");
-    mysqli_stmt_bind_param($conflict_stmt, 'isi', $equipment_id, $locked['reserved_date'], $reservation_id);
+    mysqli_stmt_bind_param($conflict_stmt, 'isiss',
+        $equipment_id,
+        $locked['reserved_date'],
+        $reservation_id,
+        $locked['reserved_start'],
+        $locked['reserved_end']
+    );
     mysqli_stmt_execute($conflict_stmt);
     $conflict = mysqli_fetch_assoc(mysqli_stmt_get_result($conflict_stmt));
     mysqli_stmt_close($conflict_stmt);
@@ -126,7 +133,13 @@ try {
         exit();
     }
 
-    $newEquipmentStatus = ($locked['reserved_date'] === $today) ? 'In-Use' : 'Reserved';
+    $now = date('Y-m-d H:i:s');
+    $newEquipmentStatus = (
+    $locked['reserved_date'] === $today &&
+    !empty($locked['reserved_start']) &&
+    $now >= $locked['reserved_start'] &&
+    $now < $locked['reserved_end']
+    ) ? 'In-Use' : 'Reserved';
 
     // Update reservation
     $upd_res = mysqli_prepare($conn, "

@@ -1,6 +1,7 @@
 <?php
 session_start();
 include('../database/db.php');
+date_default_timezone_set('Asia/Manila');
 
 // CSRF token
 if (empty($_SESSION['csrf_token'])) {
@@ -55,6 +56,25 @@ $reservationRows = mysqli_num_rows($reservationsQuery);
 
 $pendingQuery = mysqli_query($conn, "SELECT COUNT(*) AS total FROM reservations WHERE status = 'pending'");
 $pendingCount = mysqli_fetch_assoc($pendingQuery)['total'];
+
+// Overdue items for bell notification
+$overdueItemsQuery = mysqli_query($conn, "
+    SELECT e.resource_name, r.reserved_end, r.reservation_id
+    FROM reservations r
+    JOIN equipments e ON r.equipment_id = e.equipment_id
+    WHERE r.status = 'approved'
+      AND e.status = 'In-Use'
+      AND r.reserved_end IS NOT NULL
+      AND r.reserved_end < NOW()
+    ORDER BY r.reserved_end ASC
+    LIMIT 5
+");
+$overdueItems = [];
+while ($row = mysqli_fetch_assoc($overdueItemsQuery)) {
+    $overdueItems[] = $row;
+}
+$overdueCount = count($overdueItems);
+$notifTotal = $overdueCount + ($pendingCount > 0 ? 1 : 0);
 
 $addUserMessage = '';
 $addUserMessageType = '';
@@ -130,6 +150,68 @@ $greeting = $hour < 12 ? 'Good Morning' : ($hour < 18 ? 'Good Afternoon' : 'Good
     </div>
     <div class="topbar-right">
         <span class="topbar-date"><?php echo date('l, F j, Y'); ?></span>
+
+        <!-- Bell notification -->
+        <div class="notif-wrap" id="notifWrap">
+            <button class="notif-btn" id="notifBtn" aria-label="Notifications">
+                <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor"><path d="M160-200v-80h80v-280q0-83 50-149.5T420-790v-30q0-25 17.5-42.5T480-880q25 0 42.5 17.5T540-820v30q80 20 130 86.5T720-560v280h80v80H160Zm320-300Zm0 420q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-280h320v-280q0-66-47-113t-113-47q-66 0-113 47t-47 113v280Z"/></svg>
+                <?php if ($notifTotal > 0): ?>
+                <span class="notif-badge"><?= $notifTotal ?></span>
+                <?php endif; ?>
+            </button>
+            <div class="notif-dropdown" id="notifDropdown">
+                <div class="notif-dropdown-header">
+                    <span class="notif-dropdown-title">Notifications</span>
+                    <?php if ($notifTotal > 0): ?>
+                    <span class="notif-dropdown-count"><?= $notifTotal ?> new</span>
+                    <?php endif; ?>
+                </div>
+                <div class="notif-list">
+                <?php if ($overdueCount === 0 && $pendingCount === 0): ?>
+                    <div class="notif-empty">
+                        <svg xmlns="http://www.w3.org/2000/svg" height="28px" viewBox="0 -960 960 960" width="28px" fill="currentColor"><path d="m424-312 282-282-56-56-226 226-114-114-56 56 170 170Zm56 232q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z"/></svg>
+                        <p>All clear — nothing needs attention.</p>
+                    </div>
+                <?php else: ?>
+                    <?php foreach ($overdueItems as $item):
+                        $secsLate = time() - strtotime($item['reserved_end']);
+                        $minsLate = round($secsLate / 60);
+                        if ($secsLate < 3600)           $timeLabel = $minsLate . ' min ago';
+                        elseif ($secsLate < 86400)      $timeLabel = round($secsLate/3600) . ' hr ago';
+                        elseif ($secsLate < 604800)     $timeLabel = round($secsLate/86400) . ' day' . (round($secsLate/86400) == 1 ? '' : 's') . ' ago';
+                        elseif ($secsLate < 2592000)    $timeLabel = round($secsLate/604800) . ' week' . (round($secsLate/604800) == 1 ? '' : 's') . ' ago';
+                        elseif ($secsLate < 31536000)   $timeLabel = round($secsLate/2592000) . ' month' . (round($secsLate/2592000) == 1 ? '' : 's') . ' ago';
+                        else                            $timeLabel = round($secsLate/31536000) . ' year' . (round($secsLate/31536000) == 1 ? '' : 's') . ' ago';
+                    ?>
+                    <a href="in_use.php" class="notif-item notif-critical">
+                        <span class="notif-item-dot notif-dot-red"></span>
+                        <div class="notif-item-body">
+                            <strong><?= htmlspecialchars($item['resource_name']) ?> — not returned</strong>
+                            <span>Overdue since <?= date('g:i a', strtotime($item['reserved_end'])) ?></span>
+                        </div>
+                        <span class="notif-item-time"><?= $timeLabel ?></span>
+                    </a>
+                    <?php endforeach; ?>
+                    <?php if ($pendingCount > 0): ?>
+                    <a href="reservation.php" class="notif-item notif-warning">
+                        <span class="notif-item-dot notif-dot-amber"></span>
+                        <div class="notif-item-body">
+                            <strong><?= $pendingCount ?> pending reservation<?= $pendingCount != 1 ? 's' : '' ?></strong>
+                            <span>Waiting for your approval</span>
+                        </div>
+                        <span class="notif-item-time">Review →</span>
+                    </a>
+                    <?php endif; ?>
+                <?php endif; ?>
+                </div>
+                <?php if ($notifTotal > 0): ?>
+                <div class="notif-dropdown-footer">
+                    <a href="in_use.php">View all overdue items →</a>
+                </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
         <div class="profile-wrap">
             <button class="profile-btn" id="profileBtn">
                 <?php echo htmlspecialchars($profileInitials); ?>
@@ -528,6 +610,125 @@ document.addEventListener('keydown', (e) => {
 <?php if ($openAddUserModal): ?>
 showAddUserModal();
 <?php endif; ?>
+</script>
+<style>
+/* ── Bell notification ── */
+.notif-wrap { position: relative; }
+.notif-btn {
+    position: relative;
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    border: 1px solid #e5e5e5;
+    background: #fff;
+    display: flex; align-items: center; justify-content: center;
+    color: #555;
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+}
+.notif-btn:hover { background: #f5f5f5; border-color: #ccc; }
+.notif-badge {
+    position: absolute;
+    top: -5px; right: -5px;
+    background: #E8000D;
+    color: #fff;
+    font-size: 9px; font-weight: 800;
+    border-radius: 10px;
+    padding: 1px 5px;
+    border: 2px solid #fff;
+    animation: badge-pop 1.4s ease-in-out infinite;
+    min-width: 16px; text-align: center;
+}
+@keyframes badge-pop {
+    0%, 100% { transform: scale(1); }
+    50%       { transform: scale(1.18); }
+}
+.notif-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: 320px;
+    background: #fff;
+    border: 1px solid #e8e8e8;
+    border-radius: 14px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.13);
+    z-index: 9999;
+    overflow: hidden;
+}
+.notif-dropdown.open { display: block; }
+.notif-dropdown-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 13px 16px 10px;
+    border-bottom: 1px solid #f0f0f0;
+}
+.notif-dropdown-title { font-size: 13px; font-weight: 700; color: #111; }
+.notif-dropdown-count {
+    font-size: 10px; font-weight: 700;
+    background: #E8000D; color: #fff;
+    border-radius: 20px; padding: 2px 8px;
+}
+.notif-list { max-height: 280px; overflow-y: auto; }
+.notif-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 11px 16px;
+    border-bottom: 1px solid #f5f5f5;
+    text-decoration: none;
+    transition: background .12s;
+}
+.notif-item:hover { background: #fafafa; }
+.notif-critical { background: #fff8f8; }
+.notif-critical:hover { background: #fff0f0; }
+.notif-warning { background: #fffdf5; }
+.notif-warning:hover { background: #fffbeb; }
+.notif-item-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    flex-shrink: 0; margin-top: 4px;
+}
+.notif-dot-red {
+    background: #E8000D;
+    animation: dot-blink 1.1s ease-in-out infinite;
+}
+.notif-dot-amber { background: #d97706; }
+@keyframes dot-blink {
+    0%, 100% { opacity: 1; } 50% { opacity: .2; }
+}
+.notif-item-body { flex: 1; min-width: 0; }
+.notif-item-body strong {
+    display: block; font-size: 12px; font-weight: 700;
+    color: #111; margin-bottom: 2px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.notif-item-body span { font-size: 11px; color: #888; }
+.notif-item-time {
+    font-size: 10px; color: #aaa; white-space: nowrap;
+    margin-top: 2px; flex-shrink: 0;
+}
+.notif-empty {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 8px; padding: 28px 16px; color: #bbb; text-align: center;
+}
+.notif-empty p { font-size: 12px; color: #aaa; }
+.notif-dropdown-footer {
+    padding: 10px 16px;
+    border-top: 1px solid #f0f0f0;
+    text-align: center;
+}
+.notif-dropdown-footer a { font-size: 12px; font-weight: 600; color: #E8000D; text-decoration: none; }
+.notif-dropdown-footer a:hover { text-decoration: underline; }
+</style>
+
+<script>
+const notifBtn = document.getElementById('notifBtn');
+const notifDropdown = document.getElementById('notifDropdown');
+notifBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    notifDropdown.classList.toggle('open');
+    profileDropdown.classList.remove('open');
+});
+document.addEventListener('click', () => {
+    notifDropdown.classList.remove('open');
+});
+notifDropdown.addEventListener('click', (e) => e.stopPropagation());
 </script>
 </body>
 </html>

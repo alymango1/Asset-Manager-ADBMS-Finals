@@ -8,6 +8,23 @@ if (isset($conn)) {
     }
 }
 
+// Overdue in-use count
+$overdueCount = 0;
+if (isset($conn)) {
+    $overdueQuery = mysqli_query($conn, "
+        SELECT COUNT(*) AS total
+        FROM reservations r
+        JOIN equipments e ON r.equipment_id = e.equipment_id
+        WHERE r.status = 'approved'
+          AND e.status = 'In-Use'
+          AND r.reserved_end IS NOT NULL
+          AND r.reserved_end < NOW()
+    ");
+    if ($overdueQuery) {
+        $overdueCount = mysqli_fetch_assoc($overdueQuery)['total'];
+    }
+}
+
 // Current page
 $currentPage = basename($_SERVER['PHP_SELF']);
 
@@ -31,6 +48,22 @@ $sidebarRole     = ucfirst($_SESSION['role'] ?? 'User');
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../css/admin/sidebar.css">
+<style>
+    /* Isolate sidebar from page-level font cascade */
+    .sidebar, .sidebar * {
+        font-family: 'DM Sans', sans-serif;
+        box-sizing: border-box;
+    }
+    .sb-badge-overdue {
+        background: #C40C0C !important;
+        color: #fff !important;
+        animation: overdue-glow 1.4s ease-in-out infinite;
+    }
+    @keyframes overdue-glow {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(196,12,12,0); transform: scale(1); }
+        50%       { box-shadow: 0 0 0 5px rgba(196,12,12,0.25); transform: scale(1.1); }
+    }
+</style>
 
 
 
@@ -74,6 +107,9 @@ $sidebarRole     = ucfirst($_SESSION['role'] ?? 'User');
         <a href="../admin/in_use.php" class="<?= $currentPage === 'in_use.php' ? 'active' : '' ?>">
             <svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor"><path d="M440-160q-121-15-200.5-105.5T160-480q0-66 26-126t72-106l57 57q-38 34-56.5 79T240-480q0 88 56 151.5T440-257v97Zm80 0v-97q69-8 124.5-71T700-480q0-100-70-170t-170-70h-3l44 44-56 56-140-140 140-140 56 57-44 43h3q134 0 227 93t93 227q0 121-79.5 211.5T520-160Z"/></svg>
             In-Use / Returns
+            <?php if ($overdueCount > 0): ?>
+            <span class="sb-badge sb-badge-overdue"><?= $overdueCount ?></span>
+            <?php endif; ?>
         </a>
         <a href="../admin/reservation.php" class="<?= $currentPage === 'reservation.php' ? 'active' : '' ?>">
             <svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h168q13-36 43.5-58t68.5-22q38 0 68.5 22t43.5 58h168q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Z"/></svg>

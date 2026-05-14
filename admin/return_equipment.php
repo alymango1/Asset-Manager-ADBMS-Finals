@@ -55,7 +55,10 @@ $upcoming = mysqli_fetch_assoc(mysqli_query($conn, "
     SELECT reservation_id FROM reservations
     WHERE equipment_id  = $equipment_id
       AND status        = 'approved'
-      AND reserved_date >= CURDATE()
+      AND (
+    reserved_date > CURDATE()
+    OR (reserved_date = CURDATE() AND reserved_end > NOW())
+)
       AND reservation_id != " . ($resRow ? (int)$resRow['reservation_id'] : 0) . "
     ORDER BY reserved_date ASC
     LIMIT 1
