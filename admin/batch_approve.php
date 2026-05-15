@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit();
 }
 
-// CSRF check
+// make sure the request is legit
 if (
     empty($_SESSION['csrf_token']) ||
     !isset($_POST['csrf_token']) ||
@@ -36,7 +36,7 @@ $admin_id = (int) $_SESSION['user_id'];
 $today    = date('Y-m-d');
 $now      = date('Y-m-d H:i:s');
 
-// Fetch all pending reservations in this batch
+// get all pending items in this batch
 $fetch = mysqli_prepare($conn, "
     SELECT r.reservation_id, r.equipment_id, r.reserved_date,
            r.reserved_start, r.reserved_end,
@@ -46,9 +46,10 @@ $fetch = mysqli_prepare($conn, "
     WHERE r.batch_id = ? AND r.status = 'pending'
     FOR UPDATE
 ");
-// Note: FOR UPDATE not valid in SELECT outside transaction, handled below per-row
 
-// Safer: fetch first, then lock inside transaction
+// can't use FOR UPDATE here, locking happens inside the transaction below
+
+// grab rows first, then lock per item inside the transaction
 $fetch_stmt = mysqli_prepare($conn, "
     SELECT r.reservation_id, r.equipment_id, r.reserved_date,
            r.reserved_start, r.reserved_end,
@@ -82,13 +83,13 @@ try {
         $reservation_id = (int) $res['reservation_id'];
         $equipment_id   = (int) $res['equipment_id'];
 
-        // Check past date
+        // skip if date already passed
         if ($res['reserved_date'] < $today) {
             $skipped[] = htmlspecialchars($res['resource_name']) . " (date in the past — please reject instead)";
             continue;
         }
 
-        // Check equipment availability
+        // skip if equipment isn't available
         if (!in_array($res['equipment_status'], ['Available', 'Reserved'])) {
             $skipped[] = htmlspecialchars($res['resource_name']) . " (equipment is " . htmlspecialchars($res['equipment_status']) . ")";
             continue;
@@ -113,7 +114,7 @@ try {
             continue;
         }
 
-        // Check scheduling conflict
+        // skip if there's already an approved one at the same time
         $conflict_stmt = mysqli_prepare($conn, "
             SELECT reservation_id FROM reservations
             WHERE equipment_id   = ?
@@ -135,16 +136,11 @@ try {
             continue;
         }
 
-        // Determine equipment status
-        // ✅ FIXED
-        $newEquipStatus = (
-                $locked['reserved_date'] === $today &&
-                !empty($locked['reserved_start']) &&
-                $now >= $locked['reserved_start'] &&
-                $now < $locked['reserved_end']
-            ) ? 'In-Use' : 'Reserved';
+        // figure out what status to set
+        // stays reserved if another res exists
+        $newEquipStatus = 'In-Use';
 
-        // Approve reservation
+        // mark as approved
         $upd_res = mysqli_prepare($conn, "
             UPDATE reservations
             SET status      = 'approved',
@@ -156,13 +152,13 @@ try {
         mysqli_stmt_execute($upd_res);
         mysqli_stmt_close($upd_res);
 
-        // Update equipment
+        // update equipment status
         $upd_eq = mysqli_prepare($conn, "UPDATE equipments SET status = ? WHERE equipment_id = ?");
         mysqli_stmt_bind_param($upd_eq, 'si', $newEquipStatus, $equipment_id);
         mysqli_stmt_execute($upd_eq);
         mysqli_stmt_close($upd_eq);
 
-        // Log transaction
+        // save log entry
         $log_remarks = "Batch approved reservation #$reservation_id (batch: $batch_id)";
         $ins = mysqli_prepare($conn, "
             INSERT INTO equipment_transactions
@@ -189,10 +185,10 @@ try {
     exit();
 }
 
-// Refresh CSRF token
+// give a new csrf token
 $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
-// Build result message
+// build the response message
 if ($approved_count > 0 && empty($skipped)) {
     $_SESSION['success'] = "All $approved_count item" . ($approved_count !== 1 ? 's' : '') . " in the batch were approved successfully.";
 } elseif ($approved_count > 0 && !empty($skipped)) {

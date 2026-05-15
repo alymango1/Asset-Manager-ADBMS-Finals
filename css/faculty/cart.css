@@ -1,10 +1,6 @@
-/* ═══════════════════════════════════════════════════
-   RESERVATION CART — cart.css
-   Drop this file in css/faculty/ and link it in reservation.php
-   after reservation.css
-   ═══════════════════════════════════════════════════ */
+/* cart */
 
-/* ── Add-to-Cart button (replaces Reserve in table) ── */
+/* add to cart button */
 .btn-add-cart {
     display: inline-flex;
     align-items: center;
@@ -39,7 +35,7 @@
     background: linear-gradient(135deg, #b10e29 0%, #84091d 100%);
 }
 
-/* ── Floating cart bubble ── */
+/* cart bubble */
 #cartBubble {
     position: fixed;
     bottom: 28px;
@@ -95,7 +91,7 @@
     line-height: 1.5;
 }
 
-/* ── Cart drawer panel ── */
+/* cart drawer */
 #cartDrawer {
     position: fixed;
     inset: 0;
@@ -468,7 +464,7 @@
     padding: 1px 7px;
 }
 
-/* schedule section */
+/* schedule */
 .crm-section-label {
     font-size: 0.68rem;
     font-weight: 800;
@@ -543,7 +539,7 @@
 }
 .crm-msg:empty { display: none; }
 
-/* progress indicator */
+/* progress */
 .crm-progress {
     display: flex;
     flex-direction: column;
@@ -615,7 +611,7 @@
 }
 .crm-btn-submit:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
 
-/* success state inside modal */
+/* success state */
 .crm-success-view {
     display: flex;
     flex-direction: column;

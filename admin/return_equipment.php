@@ -2,7 +2,7 @@
 session_start();
 require_once __DIR__ . '/../database/db.php';
 
-// Auth guard
+// admin only
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header('Content-Type: application/json');
     echo json_encode(['success' => false, 'message' => 'Unauthorized.']);
@@ -10,6 +10,22 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 }
 
 header('Content-Type: application/json');
+
+// only accept POST
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    echo json_encode(['success' => false, 'message' => 'Invalid request method.']);
+    exit();
+}
+
+// make sure the request is legit
+if (
+    empty($_SESSION['csrf_token']) ||
+    !isset($_POST['csrf_token']) ||
+    !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])
+) {
+    echo json_encode(['success' => false, 'message' => 'Invalid CSRF token.']);
+    exit();
+}
 
 $admin_id     = (int) $_SESSION['user_id'];
 $equipment_id = isset($_POST['equipment_id']) ? (int) $_POST['equipment_id'] : 0;
@@ -20,7 +36,7 @@ if (!$equipment_id) {
     exit();
 }
 
-// Fetch current equipment status — must be In-Use to be returnable
+// get equipment, must be in-use
 $row = mysqli_fetch_assoc(mysqli_query($conn,
     "SELECT equipment_id, resource_name, status FROM equipments WHERE equipment_id = $equipment_id"
 ));
@@ -34,7 +50,7 @@ if ($row['status'] !== 'In-Use') {
     exit();
 }
 
-// Find the linked approved reservation (most recent) for this equipment
+// find the active reservation tied to this equipment
 $resRow = mysqli_fetch_assoc(mysqli_query($conn, "
     SELECT reservation_id
     FROM reservations
@@ -48,9 +64,9 @@ $reservation_id = $resRow ? (int) $resRow['reservation_id'] : 'NULL';
 
 $final_remarks = $remarks !== '' ? $remarks : 'Equipment returned by admin';
 
-// After return, check if there's another approved (Reserved) reservation coming up
-// If yes → stay Reserved so the next person can still pick it up
-// If no  → go back to Available
+// check if someone else has it reserved next
+// keep it reserved if someone else is next
+// otherwise just set it back to available
 $upcoming = mysqli_fetch_assoc(mysqli_query($conn, "
     SELECT reservation_id FROM reservations
     WHERE equipment_id  = $equipment_id
@@ -66,7 +82,7 @@ $upcoming = mysqli_fetch_assoc(mysqli_query($conn, "
 
 $newStatus = $upcoming ? 'Reserved' : 'Available';
 
-// 1. Update equipment status
+// update the equipment status
 $update = mysqli_query($conn,
     "UPDATE equipments SET status = '$newStatus' WHERE equipment_id = $equipment_id"
 );
@@ -75,7 +91,7 @@ if (!$update) {
     exit();
 }
 
-// 2. Close the reservation by updating its status to 'returned'
+// mark the reservation as returned
 if ($resRow) {
     mysqli_query($conn, "
         UPDATE reservations
@@ -85,7 +101,7 @@ if ($resRow) {
     ");
 }
 
-// 3. Log in equipment_transactions
+// save a log entry
 mysqli_query($conn, "
     INSERT INTO equipment_transactions
         (equipment_id, performed_by, status_from, status_to, action_date, remarks)

@@ -13,7 +13,7 @@ if (isset($_SESSION['full_name'])) {
     $name = $nameParts[0];
 }
 
-// Require user ID
+// need a valid user id
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     header("Location: users.php");
     exit();
@@ -21,7 +21,7 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
 
 $id = (int) $_GET['id'];
 
-// Load user
+// get the user data
 $fetchQuery = mysqli_query($conn, "SELECT * FROM users WHERE user_id = $id");
 if (!$fetchQuery || mysqli_num_rows($fetchQuery) === 0) {
     header("Location: users.php");
@@ -34,7 +34,7 @@ $messageType = "";
 
 if (isset($_POST['save'])) {
 
-    // CSRF check
+    // make sure the request is legit
     if (
         empty($_SESSION['csrf_token']) ||
         !isset($_POST['csrf_token']) ||
@@ -61,7 +61,7 @@ if (isset($_POST['save'])) {
         $message = "Invalid role selected.";
         $messageType = "error";
     } else {
-        // Check duplicate username
+        // make sure username isn't taken
         $checkStmt = mysqli_prepare($conn,
             "SELECT user_id FROM users WHERE username = ? AND user_id != ?"
         );
@@ -73,7 +73,7 @@ if (isset($_POST['save'])) {
             $message = "That username is already taken by another account.";
             $messageType = "error";
         } else {
-            // Hash password
+            // hash the password before saving
             if ($new_password !== '') {
                 $hashed_password = password_hash($new_password, PASSWORD_BCRYPT);
                 $stmt = mysqli_prepare($conn,
@@ -89,12 +89,14 @@ if (isset($_POST['save'])) {
 
             if (mysqli_stmt_execute($stmt)) {
                 mysqli_stmt_close($stmt);
+
                 // Reload user data
                 $user['full_name'] = $full_name;
                 $user['username']  = $username;
                 $user['roles']     = $role;
                 $message     = "User updated successfully!";
                 $messageType = "success";
+
                 // Refresh token
                 $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
             } else {

@@ -1,19 +1,22 @@
 <?php
 session_start();
+
 include('../database/db.php');
+date_default_timezone_set('Asia/Manila');
+mysqli_query($conn, "SET time_zone = '+08:00'");
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: login.php");
     exit();
 }
 
-// Require POST
+// only accept POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header("Location: reservation.php");
     exit();
 }
 
-// CSRF check
+// make sure the request is legit
 if (
     empty($_SESSION['csrf_token']) ||
     !isset($_POST['csrf_token']) ||
@@ -33,7 +36,7 @@ if (!$reservation_id) {
 $admin_id = (int) $_SESSION['user_id'];
 $today    = date('Y-m-d');
 
-// Load reservation
+// get the reservation
 $get_stmt = mysqli_prepare($conn, "
     SELECT r.*, e.status AS equipment_status, e.resource_name
     FROM reservations r
@@ -54,14 +57,14 @@ if (!$get_result || mysqli_num_rows($get_result) === 0) {
 $res          = mysqli_fetch_assoc($get_result);
 $equipment_id = (int) $res['equipment_id'];
 
-// Check pending status
+// skip if already handled
 if ($res['status'] !== 'pending') {
     $_SESSION['error'] = "This reservation has already been processed.";
     header("Location: reservation.php");
     exit();
 }
 
-// Check reservation date
+// skip if date already passed
 if ($res['reserved_date'] < $today) {
     $equip_name   = htmlspecialchars($res['resource_name']);
     $reservedDate = htmlspecialchars($res['reserved_date']);
@@ -70,7 +73,7 @@ if ($res['reserved_date'] < $today) {
     exit();
 }
 
-// Check equipment status
+// skip if equipment isn't usable
 if (!in_array($res['equipment_status'], ['Available', 'Reserved'])) {
     $equip_name = htmlspecialchars($res['resource_name']);
     $equip_stat = htmlspecialchars($res['equipment_status']);
@@ -79,10 +82,10 @@ if (!in_array($res['equipment_status'], ['Available', 'Reserved'])) {
     exit();
 }
 
-// Transaction with row lock
+// start db transaction
 mysqli_begin_transaction($conn);
 try {
-    // Lock reservation row
+    // lock the row so no one else grabs it
     $lock_stmt = mysqli_prepare($conn, "
         SELECT r.status, r.reserved_date, r.equipment_id,
                e.status AS equipment_status
@@ -96,7 +99,7 @@ try {
     $locked = mysqli_fetch_assoc(mysqli_stmt_get_result($lock_stmt));
     mysqli_stmt_close($lock_stmt);
 
-    // Re-check pending status
+    // double check it's still pending
     if (!$locked || $locked['status'] !== 'pending') {
         mysqli_rollback($conn);
         $_SESSION['error'] = "This reservation has already been processed by another admin.";
@@ -104,7 +107,7 @@ try {
         exit();
     }
 
-    // Check approval conflict
+    // make sure no overlap with other approved ones
     $conflict_stmt = mysqli_prepare($conn, "
         SELECT reservation_id FROM reservations
         WHERE equipment_id   = ?
@@ -134,14 +137,9 @@ try {
     }
 
     $now = date('Y-m-d H:i:s');
-    $newEquipmentStatus = (
-    $locked['reserved_date'] === $today &&
-    !empty($locked['reserved_start']) &&
-    $now >= $locked['reserved_start'] &&
-    $now < $locked['reserved_end']
-    ) ? 'In-Use' : 'Reserved';
+    $newEquipmentStatus = 'In-Use';
 
-    // Update reservation
+    // mark reservation as approved
     $upd_res = mysqli_prepare($conn, "
         UPDATE reservations
         SET status      = 'approved',
@@ -153,13 +151,13 @@ try {
     mysqli_stmt_execute($upd_res);
     mysqli_stmt_close($upd_res);
 
-    // Update equipment
+    // mark equipment as in use
     $upd_eq = mysqli_prepare($conn, "UPDATE equipments SET status = ? WHERE equipment_id = ?");
     mysqli_stmt_bind_param($upd_eq, 'si', $newEquipmentStatus, $equipment_id);
     mysqli_stmt_execute($upd_eq);
     mysqli_stmt_close($upd_eq);
 
-    // Log transaction
+    // save a log entry
     $log_remarks = "Approved reservation #$reservation_id";
     $ins = mysqli_prepare($conn, "
         INSERT INTO equipment_transactions
@@ -179,7 +177,7 @@ try {
     exit();
 }
 
-// Refresh token
+// give a new csrf token
 $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
 $_SESSION['success'] = "Reservation #$reservation_id approved successfully.";

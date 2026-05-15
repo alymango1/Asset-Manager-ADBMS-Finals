@@ -2,19 +2,19 @@
 session_start();
 require_once '../database/db.php';
 
-// Admin only
+// admin only
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: login.php");
     exit();
 }
 
-// Require POST
+// only accept POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header("Location: equipments.php");
     exit();
 }
 
-// CSRF check
+// make sure the request is legit
 if (
     empty($_SESSION['csrf_token']) ||
     !isset($_POST['csrf_token']) ||
@@ -32,7 +32,7 @@ if (!$id) {
     exit();
 }
 
-// Check equipment exists
+// make sure it exists
 $check = mysqli_fetch_assoc(mysqli_query($conn,
     "SELECT equipment_id, resource_name FROM equipments WHERE equipment_id = $id"
 ));
@@ -43,7 +43,7 @@ if (!$check) {
     exit();
 }
 
-// Block delete with active reservations
+// don't delete if it's still being used
 $activeRes = mysqli_fetch_assoc(mysqli_query($conn,
     "SELECT reservation_id FROM reservations
      WHERE equipment_id = $id AND status IN ('pending','approved')
@@ -55,11 +55,11 @@ if ($activeRes) {
     exit();
 }
 
-// Delete equipment
+// delete it
 $delete = mysqli_query($conn, "DELETE FROM equipments WHERE equipment_id = $id");
 
 if ($delete) {
-    // Refresh token
+    // give a new csrf token
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     $_SESSION['success'] = "\"" . htmlspecialchars($check['resource_name']) . "\" has been deleted.";
 } else {

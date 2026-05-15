@@ -11,7 +11,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'staff') {
 header('Content-Type: application/json');
 
 
-// CSRF check
+// make sure the request is legit
 $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? $_POST['csrf_token'] ?? '';
 if (empty($token) || !hash_equals($_SESSION['csrf_token'], $token)) {
     echo json_encode(['success' => false, 'message' => 'Invalid CSRF token.']);
@@ -26,7 +26,7 @@ if (!$reservation_id) {
     exit();
 }
 
-// Load reservation
+// get the reservation
 $fetch_stmt = mysqli_prepare($conn,
     "SELECT reservation_id, status, requested_by, equipment_id
      FROM reservations
@@ -42,7 +42,7 @@ if (!$row) {
     exit();
 }
 
-// Ownership check
+// make sure it belongs to this user
 if ($row['requested_by'] === null || (int)$row['requested_by'] !== $user_id) {
     echo json_encode(['success' => false, 'message' => 'You do not own this reservation.']);
     exit();
@@ -53,10 +53,10 @@ if ($row['status'] !== 'pending') {
     exit();
 }
 
-// Save equipment ID
+// keep equipment id for later
 $equipment_id = (int)$row['equipment_id'];
 
-// Transaction
+// start db transaction
 mysqli_begin_transaction($conn);
 try {
     $cancel = mysqli_prepare($conn,
@@ -67,7 +67,7 @@ try {
     mysqli_stmt_close($cancel);
 
     if ($equipment_id) {
-        // Release equipment if no approved reservation
+        // set equipment back to available if no one else has it
         $approved_stmt = mysqli_prepare($conn,
             "SELECT reservation_id FROM reservations
              WHERE equipment_id = ?

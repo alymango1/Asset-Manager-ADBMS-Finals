@@ -1,6 +1,6 @@
 
 <?php
-// Pending reservations count
+// how many pending reservations
 $pendingCount = 0;
 if (isset($conn)) {
     $pendingQuery = mysqli_query($conn, "SELECT COUNT(*) AS total FROM reservations WHERE status = 'pending'");
@@ -9,17 +9,17 @@ if (isset($conn)) {
     }
 }
 
-// Current page
+// figure out which page we're on
 $currentPage = basename($_SERVER['PHP_SELF']);
 
-// Logged-in user name
+// get the user's name
 $sidebarNameRaw = $_SESSION['full_name'] ?? ($_SESSION['username'] ?? 'User');
 $sidebarNameRaw = trim(preg_replace('/\s+/', ' ', (string)$sidebarNameRaw));
 
-// Normalize name casing for display
+// fix the name casing
 $sidebarName = $sidebarNameRaw !== '' ? ucwords(strtolower($sidebarNameRaw)) : 'User';
 
-// Build initials from first/last name (or first 2 letters if single word)
+// make initials from their name
 $nameParts = $sidebarNameRaw !== '' ? preg_split('/\s+/', $sidebarNameRaw) : [];
 $first = $nameParts[0] ?? '';
 $last  = count($nameParts) > 1 ? $nameParts[count($nameParts) - 1] : '';

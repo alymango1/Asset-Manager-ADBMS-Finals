@@ -2,19 +2,19 @@
 session_start();
 require_once '../database/db.php';
 
-// Admin only
+// admin only
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../admin/login.php");
     exit();
 }
 
-// Require POST
+// only accept POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header("Location: ../admin/users.php");
     exit();
 }
 
-// CSRF check
+// make sure the request is legit
 if (
     empty($_SESSION['csrf_token']) ||
     !isset($_POST['csrf_token']) ||
@@ -25,7 +25,7 @@ if (
     exit();
 }
 
-// Read user ID
+// grab the user id from the form
 $id = isset($_POST['id']) ? (int) $_POST['id'] : 0;
 
 if (!$id) {
@@ -33,14 +33,14 @@ if (!$id) {
     exit();
 }
 
-// Block self-delete
+// don't let an admin delete themselves
 if ($id === (int) $_SESSION['user_id']) {
     $_SESSION['error'] = "You cannot delete your own account.";
     header("Location: ../admin/users.php");
     exit();
 }
 
-// Check user exists
+// make sure the user actually exists before we try anything
 $check = mysqli_fetch_assoc(mysqli_query($conn,
     "SELECT user_id, full_name FROM users WHERE user_id = $id"
 ));
@@ -51,11 +51,11 @@ if (!$check) {
     exit();
 }
 
-// Delete user
+// go ahead and delete them
 $delete = mysqli_query($conn, "DELETE FROM users WHERE user_id = $id");
 
 if ($delete) {
-    // Refresh token
+    // give a new csrf token
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     $_SESSION['success'] = "\"" . htmlspecialchars($check['full_name']) . "\" has been deleted.";
 } else {

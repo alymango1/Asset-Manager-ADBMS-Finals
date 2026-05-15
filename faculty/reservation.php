@@ -7,12 +7,12 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'staff') {
     exit();
 }
 
-// CSRF token
+// set up csrf token if missing
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-// User name
+// get user's name
 $name = 'User';
 if (isset($_SESSION['full_name'])) {
     $nameParts = explode(' ', trim($_SESSION['full_name']));
@@ -21,7 +21,7 @@ if (isset($_SESSION['full_name'])) {
     $name = $_SESSION['username'];
 }
 
-// Display name + initials
+// make display name and initials
 $fullNameRaw = trim(preg_replace('/\s+/', ' ', (string)($_SESSION['full_name'] ?? $name)));
 $firstNameRaw = $fullNameRaw !== '' ? preg_split('/\s+/', $fullNameRaw)[0] : 'User';
 $name = ucfirst(strtolower($firstNameRaw));
@@ -33,7 +33,7 @@ $profileInitials = $profileInitials !== '' ? $profileInitials : 'U';
 
 $user_id = $_SESSION['user_id'];
 
-// ── Handle CART (multi-item) reservation POST ──────────────────────────────
+// handle cart reservation submit
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_cart'])) {
     header('Content-Type: application/json');
 
@@ -77,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_cart'])) {
     $reserved_start = $res_date . ' ' . $start_time;
     $reserved_end   = $res_date . ' ' . $end_time;
 
-    // Decode cart items
+    // parse the cart data from post
     $cart_items_raw = $_POST['cart_items'] ?? '[]';
     $cart_items = json_decode($cart_items_raw, true);
     if (!is_array($cart_items) || count($cart_items) === 0) {
@@ -88,14 +88,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_cart'])) {
     $inserted_ids = [];
     $errors = [];
 
-    // Generate one batch ID for the whole cart submission (only if >1 item)
+    // make a batch id if more than one item
     $batch_id = (count($cart_items) > 1) ? bin2hex(random_bytes(16)) : null;
 
     foreach ($cart_items as $item) {
         $equipment_id = (int)($item['id'] ?? 0);
         if ($equipment_id <= 0) continue;
 
-        // Check self-duplicate
+        // skip if user already reserved this
         $stmt_self = mysqli_prepare($conn, "SELECT reservation_id FROM reservations
             WHERE equipment_id = ? AND requested_by = ?
             AND status IN ('pending','approved')
@@ -111,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_cart'])) {
             continue;
         }
 
-        // Check conflicts
+        // skip if there's a time conflict
         $stmt_conflict = mysqli_prepare($conn, "SELECT reservation_id FROM reservations
             WHERE equipment_id = ?
             AND status = 'approved'
@@ -152,7 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_cart'])) {
     exit();
 }
 
-// ── Handle single-item reservation POST (kept for backward compat) ─────────
+// handle old single-item submit
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_res'])) {
     header('Content-Type: application/json');
 
@@ -243,7 +243,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_res'])) {
     exit();
 }
 
-// Search filters
+// grab search filter values
 $search   = isset($_GET['search'])   ? trim(mysqli_real_escape_string($conn, $_GET['search']))   : '';
 $category = isset($_GET['category']) ? trim(mysqli_real_escape_string($conn, $_GET['category'])) : '';
 
@@ -311,143 +311,7 @@ $eventsCount = (int)(mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS 
     <link rel="stylesheet" href="../css/faculty/modal.css">
     <link rel="stylesheet" href="../css/faculty/reservation.css">
     <link rel="stylesheet" href="../css/faculty/cart.css">
-    <style>
-        /* ── Single-item Reserve Modal (kept, same style as before) ── */
-        #reserveModal.modal-overlay {
-            position: fixed; inset: 0;
-            background: rgba(0,0,0,.48);
-            backdrop-filter: blur(5px);
-            -webkit-backdrop-filter: blur(5px);
-            display: flex; align-items: center; justify-content: center;
-            z-index: 9999; padding: 16px;
-            opacity: 0; pointer-events: none;
-            transition: opacity .18s ease;
-        }
-        #reserveModal.modal-overlay.active { opacity: 1; pointer-events: all; }
-        #reserveModal .modal-box {
-            background: #fff; border-radius: 18px; width: 100%; max-width: 440px;
-            overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.22), 0 2px 12px rgba(196,12,12,.12);
-            display: flex; flex-direction: column;
-            transform: translateY(10px) scale(.97);
-            transition: transform .22s cubic-bezier(.34,1.28,.64,1);
-            clip-path: inset(0 round 18px);
-        }
-        #reserveModal.modal-overlay.active .modal-box { transform: translateY(0) scale(1); }
-        #reserveModal .modal-header {
-            background: linear-gradient(135deg, #C40C0C 0%, #8b0808 100%);
-            padding: 18px 20px 16px; display: flex; align-items: center; gap: 12px; margin: 0; flex-shrink: 0;
-        }
-        #reserveModal .modal-header-icon {
-            background: rgba(255,255,255,.18); border-radius: 10px; width: 38px; height: 38px;
-            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-            color: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.15);
-        }
-        #reserveModal .modal-header-text { flex: 1; min-width: 0; }
-        #reserveModal .modal-header h3 {
-            color: #fff; font-size: 15px; font-weight: 700; margin: 0 0 2px;
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -.1px;
-        }
-        #reserveModal .modal-subtitle { color: rgba(255,255,255,.72); font-size: 11.5px; margin: 0; }
-        #reserveModal .modal-close-btn {
-            background: rgba(255,255,255,.18); border: none; border-radius: 8px;
-            width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
-            color: #fff; cursor: pointer; flex-shrink: 0; transition: background .15s; padding: 0;
-        }
-        #reserveModal .modal-close-btn:hover { background: rgba(255,255,255,.3); }
-        #reserveModal .modal-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
-        #reserveModal .modal-info-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
-        #reserveModal .modal-info-chip {
-            background: #f8f8f8; border: 1px solid #efefef; border-radius: 10px; padding: 9px 12px; min-width: 0;
-        }
-        #reserveModal .modal-info-chip label {
-            display: block; font-size: 9px; font-weight: 700; text-transform: uppercase;
-            letter-spacing: .7px; color: #b0b0b0; margin-bottom: 3px;
-        }
-        #reserveModal .modal-info-chip p {
-            font-size: 12.5px; font-weight: 600; color: #1a1a1a; margin: 0;
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        }
-        #reserveModal .modal-status-badge {
-            display: inline-flex; align-items: center; gap: 4px;
-            font-size: 10px !important; font-weight: 700 !important;
-            color: #15803d !important; background: #f0fdf4; border: 1px solid #bbf7d0;
-            border-radius: 20px; padding: 1px 7px; white-space: nowrap;
-        }
-        #reserveModal .modal-status-badge::before {
-            content: ''; width: 5px; height: 5px; border-radius: 50%; background: #22c55e; flex-shrink: 0;
-        }
-        #reserveModal .modal-divider { height: 1px; background: #f0f0f0; margin: 0 -20px; }
-        #reserveModal .modal-section-label {
-            font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: #C40C0C; margin: 0;
-        }
-        #reserveModal .modal-field { display: flex; flex-direction: column; gap: 4px; }
-        #reserveModal .modal-field label {
-            font-size: 11px; font-weight: 600; color: #666; display: flex; align-items: center; gap: 4px;
-            text-transform: uppercase; letter-spacing: .4px;
-        }
-        #reserveModal .modal-field input {
-            width: 100%; box-sizing: border-box; padding: 8px 11px; border: 1.5px solid #e8e8e8;
-            border-radius: 9px; font-size: 13px; font-family: inherit; background: #fff; color: #1a1a1a;
-            cursor: pointer; transition: border-color .15s, box-shadow .15s; position: relative;
-        }
-        #reserveModal .modal-field input:focus { outline: none; border-color: #C40C0C; box-shadow: 0 0 0 3px rgba(196,12,12,.08); }
-        #reserveModal .modal-schedule-row {
-            display: grid; grid-template-columns: 1fr 1fr auto 1fr; gap: 8px; align-items: flex-end;
-        }
-        #reserveModal .modal-time-arrow {
-            display: flex; justify-content: center; align-items: center; padding-bottom: 11px; color: #ccc;
-        }
-        #reserveModal .modal-hint {
-            display: flex; align-items: flex-start; gap: 7px; background: #fff8f8;
-            border: 1px solid #ffd9d9; border-radius: 8px; padding: 8px 10px;
-            font-size: 11.5px; color: #999; line-height: 1.4;
-        }
-        #reserveModal .modal-hint svg { flex-shrink: 0; color: #C40C0C; }
-        #reserveModal .modal-msg { font-size: 11.5px; color: #C40C0C; font-weight: 500; min-height: 0; margin: -4px 0 0; }
-        #reserveModal .modal-msg:empty { display: none; }
-        #reserveModal .modal-footer {
-            padding: 12px 20px 16px; display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid #f0f0f0;
-        }
-        #reserveModal .modal-btn-cancel {
-            padding: 8px 16px; border: 1.5px solid #e5e5e5; border-radius: 9px; background: #fff;
-            color: #666; font-size: 12.5px; font-weight: 600; font-family: inherit; cursor: pointer;
-            transition: border-color .15s, color .15s;
-        }
-        #reserveModal .modal-btn-cancel:hover { border-color: #bbb; color: #222; }
-        #reserveModal .modal-btn-submit {
-            padding: 8px 18px; border: none; border-radius: 9px;
-            background: linear-gradient(135deg, #C40C0C, #9e0a0a);
-            color: #fff; font-size: 12.5px; font-weight: 700; font-family: inherit; cursor: pointer;
-            display: flex; align-items: center; gap: 5px;
-            box-shadow: 0 2px 10px rgba(196,12,12,.28);
-            transition: opacity .15s, transform .15s, box-shadow .15s;
-        }
-        #reserveModal .modal-btn-submit:hover:not(:disabled) { opacity: .9; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(196,12,12,.38); }
-        #reserveModal .modal-btn-submit:disabled { opacity: .6; cursor: not-allowed; }
 
-        /* ── "Add to Cart" hint banner on the page ── */
-        .cart-intro-banner {
-            background: linear-gradient(135deg, #fff5f6, #fdf0f1);
-            border: 1px solid #f5d0d5;
-            border-radius: 13px;
-            padding: 13px 16px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 14px;
-        }
-        .cart-intro-banner-icon {
-            width: 38px; height: 38px;
-            background: linear-gradient(135deg, #C8102E, #9b0b22);
-            border-radius: 10px;
-            display: flex; align-items: center; justify-content: center;
-            color: #fff; flex-shrink: 0;
-        }
-        .cart-intro-banner p { margin: 0; font-size: 0.82rem; color: #5a3840; line-height: 1.5; }
-        .cart-intro-banner strong { color: #C8102E; }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
-    </style>
 </head>
 <body>
 
@@ -866,17 +730,14 @@ $eventsCount = (int)(mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS 
 </div>
 
 <script>
-// ─────────────────────────────────────────────
-//  Profile dropdown
-// ─────────────────────────────────────────────
+
+// profile dropdown
 const profileBtn = document.getElementById('profileBtn');
 const profileDropdown = document.getElementById('profileDropdown');
 profileBtn.addEventListener('click', (e) => { e.stopPropagation(); profileDropdown.classList.toggle('open'); });
 document.addEventListener('click', () => { profileDropdown.classList.remove('open'); });
 
-// ─────────────────────────────────────────────
-//  Confirm modal
-// ─────────────────────────────────────────────
+// confirm modal
 let _confirmActionCallback = null;
 function openConfirmActionModal(message, onConfirm) {
     _confirmActionCallback = onConfirm;
@@ -906,36 +767,43 @@ document.getElementById('confirmActionProceedBtn').addEventListener('click', fun
     else closeConfirmActionModal();
 });
 
-// ─────────────────────────────────────────────
-//  CART STATE
-// ─────────────────────────────────────────────
-let cart = []; // [{id, name, category}]
+// cart state saved across reloads
+function loadCart() {
+    try { return JSON.parse(localStorage.getItem('reservationCart') || '[]'); } catch(e) { return []; }
+}
+function saveCart(c) {
+    try { localStorage.setItem('reservationCart', JSON.stringify(c)); } catch(e) {}
+}
+let cart = loadCart(); // [{id, name, category}]
 
 function getCartIndex(id) {
     return cart.findIndex(item => item.id === id);
 }
 
 function updateCartUI() {
+    saveCart(cart);
     const count = cart.length;
-    // Bubble
+
+    // update cart bubble count
     const bubble = document.getElementById('cartBubble');
     document.getElementById('cartBubbleCount').textContent = count;
     if (count > 0) bubble.classList.add('visible');
     else bubble.classList.remove('visible');
 
-    // Drawer subtitle
+    // update cart drawer subtitle
     document.getElementById('cartDrawerSubtitle').textContent = count + ' item' + (count !== 1 ? 's' : '') + ' queued for reservation';
     document.getElementById('cartFooterCount').textContent = count + ' item' + (count !== 1 ? 's' : '');
 
-    // Checkout button
+    // update checkout button
     const checkoutBtn = document.getElementById('cartCheckoutBtn');
     checkoutBtn.disabled = count === 0;
     document.getElementById('cartCheckoutCount').textContent = count;
 
-    // Items list
+    // update items list
     const listEl = document.getElementById('cartItemsList');
     const emptyEl = document.getElementById('cartEmptyState');
-    // Remove existing cards
+
+    // clear old cards
     listEl.querySelectorAll('.cart-item-card').forEach(el => el.remove());
     if (count === 0) {
         emptyEl.style.display = 'flex';
@@ -990,7 +858,8 @@ function toggleCart(id, name, category) {
 function removeFromCart(id) {
     const idx = getCartIndex(id);
     if (idx !== -1) cart.splice(idx, 1);
-    // Reset button on table
+
+    // reset the add button on the table
     const btn = document.getElementById('cartbtn-' + id);
     if (btn) {
         btn.classList.remove('in-cart');
@@ -1004,7 +873,7 @@ function removeFromCart(id) {
 function clearCart() {
     if (cart.length === 0) return;
     openConfirmActionModal('Remove all ' + cart.length + ' items from your cart?', function() {
-        // Reset all buttons
+        // reset all add buttons
         cart.forEach(item => {
             const btn = document.getElementById('cartbtn-' + item.id);
             if (btn) {
@@ -1015,13 +884,12 @@ function clearCart() {
             }
         });
         cart = [];
+        saveCart(cart);
         updateCartUI();
     });
 }
 
-// ─────────────────────────────────────────────
-//  CART DRAWER
-// ─────────────────────────────────────────────
+// cart drawer open/close
 function openCartDrawer() {
     document.getElementById('cartDrawer').classList.add('open');
     document.body.style.overflow = 'hidden';
@@ -1031,16 +899,67 @@ function closeCartDrawer() {
     document.body.style.overflow = '';
 }
 
-// ─────────────────────────────────────────────
-//  CART RESERVE MODAL
-// ─────────────────────────────────────────────
+// cart reserve modal
 function openCartReserveModal() {
     if (cart.length === 0) return;
     closeCartDrawer();
 
-    // Populate items list
+    // reset modal body if it was replaced
+    document.getElementById('crmBody').innerHTML = `
+        <div class="crm-items-summary">
+            <p class="crm-items-summary-label">Items in this reservation</p>
+            <div id="crmItemsList"></div>
+        </div>
+        <div class="crm-divider"></div>
+        <p class="crm-section-label">Schedule — applies to all items</p>
+        <div class="crm-schedule-grid">
+            <div class="crm-field">
+                <label>
+                    <svg xmlns="http://www.w3.org/2000/svg" height="12px" viewBox="0 -960 960 960" width="12px" fill="#C8102E"><path d="M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Z"/></svg>
+                    Date
+                </label>
+                <input type="date" id="crmDate" min="${new Date().toISOString().split('T')[0]}" required>
+            </div>
+            <div class="crm-field">
+                <label>
+                    <svg xmlns="http://www.w3.org/2000/svg" height="12px" viewBox="0 -960 960 960" width="12px" fill="#C8102E"><path d="M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm28 8-20-20v-208h-80v240l168 168 56-56-124-124Z"/></svg>
+                    Start
+                </label>
+                <input type="time" id="crmStart" required>
+            </div>
+            <div class="crm-time-arrow">
+                <svg xmlns="http://www.w3.org/2000/svg" height="14px" viewBox="0 -960 960 960" width="14px" fill="#ddd"><path d="M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z"/></svg>
+            </div>
+            <div class="crm-field">
+                <label>
+                    <svg xmlns="http://www.w3.org/2000/svg" height="12px" viewBox="0 -960 960 960" width="12px" fill="#C8102E"><path d="M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0 160q-17 0-28.5-11.5T440-360v-200h-80v-80h160v280q0 17-11.5 28.5T480-320Z"/></svg>
+                    End
+                </label>
+                <input type="time" id="crmEnd" required>
+            </div>
+        </div>
+        <div class="crm-progress" id="crmProgressWrap" style="display:none;">
+            <div class="crm-progress-bar-wrap"><div class="crm-progress-bar" id="crmProgressBar"></div></div>
+            <div class="crm-progress-label"><span id="crmProgressLabel">Submitting…</span><span id="crmProgressFraction"></span></div>
+        </div>
+        <div class="crm-hint">
+            <svg xmlns="http://www.w3.org/2000/svg" height="14px" viewBox="0 -960 960 960" width="14px" fill="#C8102E"><path d="M480-280q17 0 28.5-11.5T520-320v-160q0-17-11.5-28.5T480-520q-17 0-28.5 11.5T440-480v160q0 17 11.5 28.5T480-280Zm0-320q17 0 28.5-11.5T520-640q0-17-11.5-28.5T480-680q-17 0-28.5 11.5T440-640q0 17 11.5 28.5T480-600Zm0 520q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z"/></svg>
+            All items in your cart will be requested for the same date &amp; time slot. Requests are subject to admin approval.
+        </div>
+        <p id="crmMsg" class="crm-msg"></p>
+    `;
+
+    // reset footer buttons
+    document.querySelector('.crm-footer').innerHTML = `
+        <button type="button" class="crm-btn-cancel" onclick="closeCartReserveModal()">Cancel</button>
+        <button type="button" class="crm-btn-submit" id="crmSubmitBtn" onclick="submitCartReservation()">
+            <svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg>
+            Confirm Reservation
+        </button>
+    `;
+
+    // fill in the items list
     const listEl = document.getElementById('crmItemsList');
-    listEl.innerHTML = '';
     cart.forEach(item => {
         const pill = document.createElement('div');
         pill.className = 'crm-item-pill';
@@ -1053,22 +972,6 @@ function openCartReserveModal() {
     });
 
     document.getElementById('crmSubtitle').textContent = 'Set one date & time for all ' + cart.length + ' items';
-
-    // Reset form
-    document.getElementById('crmDate').value = '';
-    document.getElementById('crmStart').value = '';
-    document.getElementById('crmEnd').value = '';
-    document.getElementById('crmMsg').textContent = '';
-    document.getElementById('crmProgressWrap').style.display = 'none';
-    document.getElementById('crmProgressBar').style.width = '0%';
-
-    const submitBtn = document.getElementById('crmSubmitBtn');
-    submitBtn.disabled = false;
-    submitBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg> Confirm Reservation`;
-
-    // Show body (not success view)
-    document.getElementById('crmBody').style.display = '';
-    document.querySelector('.crm-footer').style.display = '';
 
     document.getElementById('cartReserveModal').classList.add('active');
 }
@@ -1097,7 +1000,7 @@ function submitCartReservation() {
     submitBtn.disabled = true;
     submitBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor" style="animation:spin 0.8s linear infinite"><path d="M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q17 0 28.5 11.5T520-840q0 17-11.5 28.5T480-800q-133 0-226.5 93.5T160-480q0 133 93.5 226.5T480-160q133 0 226.5-93.5T800-480q0-17 11.5-28.5T840-520q17 0 28.5 11.5T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z"/></svg> Submitting…`;
 
-    // Show progress bar
+    // show the progress bar
     const progressWrap = document.getElementById('crmProgressWrap');
     const progressBar  = document.getElementById('crmProgressBar');
     const progressLbl  = document.getElementById('crmProgressLabel');
@@ -1114,7 +1017,7 @@ function submitCartReservation() {
     form.append('submit_cart', '1');
     form.append('csrf_token',  document.querySelector('meta[name="csrf-token"]').content);
 
-    // Animate progress during fetch
+    // animate the bar while waiting
     let fakeProgress = 0;
     const progressInterval = setInterval(() => {
         if (fakeProgress < 80) { fakeProgress += 8; progressBar.style.width = fakeProgress + '%'; }
@@ -1148,6 +1051,7 @@ function submitCartReservation() {
 
                     // Remove successfully reserved items from cart
                     cart = cart.filter(item => insertedIds[item.id] === undefined);
+                    saveCart(cart);
                     updateCartUI();
 
                     // Show success in modal
@@ -1207,9 +1111,7 @@ function showCartSuccess(successItems, failedErrors) {
     showToast(successItems.length + ' reservation' + (successItems.length !== 1 ? 's' : '') + ' submitted! Awaiting approval.');
 }
 
-// ─────────────────────────────────────────────
-//  Single-item modal (legacy)
-// ─────────────────────────────────────────────
+// old single item modal
 let _reserveId = null;
 const reserveDateInput = document.getElementById('reserveDate');
 
@@ -1298,9 +1200,7 @@ function submitReservation() {
         });
 }
 
-// ─────────────────────────────────────────────
-//  Cancel existing reservation
-// ─────────────────────────────────────────────
+// cancel reservation
 function cancelExistingReservation(reservationId, equipmentName) {
     if (!reservationId) return;
     openConfirmActionModal('Cancel reservation for "' + equipmentName + '"?', function() {
@@ -1317,9 +1217,7 @@ function cancelExistingReservation(reservationId, equipmentName) {
     });
 }
 
-// ─────────────────────────────────────────────
-//  Toast
-// ─────────────────────────────────────────────
+// show toast message
 function showToast(msg) {
     const t = document.getElementById('successToast');
     document.getElementById('toastMsg').textContent = msg || 'Reservation submitted!';
@@ -1327,7 +1225,16 @@ function showToast(msg) {
     setTimeout(() => t.classList.remove('show'), 3800);
 }
 
-// Init
+// restore cart button states on load
+cart.forEach(item => {
+    const btn = document.getElementById('cartbtn-' + item.id);
+    if (btn) {
+        btn.classList.add('in-cart');
+        btn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" height="15px" viewBox="0 -960 960 960" width="15px" fill="currentColor"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg>
+            In Cart`;
+    }
+});
 updateCartUI();
 </script>
 

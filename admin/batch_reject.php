@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit();
 }
 
-// CSRF check
+// make sure the request is legit
 if (
     empty($_SESSION['csrf_token']) ||
     !isset($_POST['csrf_token']) ||
@@ -42,6 +42,29 @@ if (empty($remarks)) {
 
 mysqli_begin_transaction($conn);
 try {
+    // get all pending items before we reject them
+    $fetch_stmt = mysqli_prepare($conn, "
+        SELECT reservation_id, equipment_id
+        FROM reservations
+        WHERE batch_id = ? AND status = 'pending'
+    ");
+    mysqli_stmt_bind_param($fetch_stmt, 's', $batch_id);
+    mysqli_stmt_execute($fetch_stmt);
+    $fetch_result = mysqli_stmt_get_result($fetch_stmt);
+    $pending_items = [];
+    while ($row = mysqli_fetch_assoc($fetch_result)) {
+        $pending_items[] = $row;
+    }
+    mysqli_stmt_close($fetch_stmt);
+
+    if (empty($pending_items)) {
+        mysqli_rollback($conn);
+        $_SESSION['error'] = "No pending items found in this batch to reject.";
+        header("Location: reservation.php");
+        exit();
+    }
+
+    // mark all as rejected
     $stmt = mysqli_prepare($conn, "
         UPDATE reservations
         SET status      = 'rejected',
@@ -56,7 +79,25 @@ try {
     $affected = mysqli_stmt_affected_rows($stmt);
     mysqli_stmt_close($stmt);
 
+    // log each rejected item
+    $log_stmt = mysqli_prepare($conn, "
+        INSERT INTO equipment_transactions
+            (action_type, reservation_id, equipment_id, performed_by,
+             status_from, status_to, action_date, remarks)
+        VALUES ('reservation_rejected', ?, ?, ?, 'pending', 'rejected', NOW(), ?)
+    ");
+    $log_remarks = "Batch rejected (batch: $batch_id) — Reason: $remarks";
+    foreach ($pending_items as $item) {
+        mysqli_stmt_bind_param($log_stmt, 'iiis',
+            $item['reservation_id'], $item['equipment_id'], $admin_id, $log_remarks);
+        mysqli_stmt_execute($log_stmt);
+    }
+    mysqli_stmt_close($log_stmt);
+
+    // end log
+
     mysqli_commit($conn);
+
 } catch (Exception $e) {
     mysqli_rollback($conn);
     $_SESSION['error'] = "Batch rejection failed due to a database error. Please try again.";
@@ -64,14 +105,9 @@ try {
     exit();
 }
 
-// Refresh CSRF token
+// give a new csrf token
 $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
-if ($affected > 0) {
-    $_SESSION['success'] = "Batch rejected — $affected item" . ($affected !== 1 ? 's' : '') . " rejected successfully.";
-} else {
-    $_SESSION['error'] = "No pending items found in this batch to reject.";
-}
-
+$_SESSION['success'] = "Batch rejected — $affected item" . ($affected !== 1 ? 's' : '') . " rejected successfully.";
 header("Location: reservation.php");
 exit();

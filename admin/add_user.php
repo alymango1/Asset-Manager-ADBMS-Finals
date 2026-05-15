@@ -7,7 +7,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     exit();
 }
 
-// CSRF token
+// set up csrf token if missing
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
@@ -24,7 +24,7 @@ $message = "";
 
 if (isset($_POST['submit'])) {
 
-    // CSRF check
+    // make sure the request is legit
     if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         $message = "Invalid request. Please try again.";
     } else {
@@ -33,7 +33,7 @@ if (isset($_POST['submit'])) {
         $rawPassword = trim($_POST['password']);
         $role        = $_POST['role'];
 
-        // Validate role
+        // reject invalid roles
         $allowedRoles = ['admin', 'staff'];
         if (!in_array($role, $allowedRoles, true)) {
             $message = "Invalid role selected.";
@@ -43,7 +43,8 @@ if (isset($_POST['submit'])) {
             $message = "Password must be at least 8 characters.";
         } else {
             $password = password_hash($rawPassword, PASSWORD_BCRYPT);
-            // Insert user
+
+            // create the user
             $stmt = mysqli_prepare($conn,
                 "INSERT INTO users (full_name, username, password, roles) VALUES (?, ?, ?, ?)"
             );
@@ -51,6 +52,7 @@ if (isset($_POST['submit'])) {
 
             if (mysqli_stmt_execute($stmt)) {
                 $message = "User added successfully!";
+
                 // Refresh token
                 $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
             } else {
@@ -70,6 +72,7 @@ if (isset($_POST['submit'])) {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Funnel+Sans:ital,wght@0,300..800;1,300..800&family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&family=Mona+Sans:ital,wght@0,200..900;1,200..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../css/admin/style.css">
+    <link rel="stylesheet" href="../css/admin/add_user.css">
 </head>
 
 <body>
@@ -103,7 +106,7 @@ btn.addEventListener("click", function (e) {
     menu.classList.toggle("active");
 });
 
-// Close dropdown on outside click
+// close dropdown when clicking outside
 document.addEventListener("click", function () {
     menu.classList.remove("active");
 });
@@ -121,32 +124,6 @@ document.addEventListener("click", function () {
                 <?php echo htmlspecialchars($message); ?>
             </div>
         <?php } ?>
-
-        <style>
-            .au-pw-wrap { position:relative; display:flex; align-items:center; }
-            .au-pw-wrap input { padding-right:36px !important; width:100%; }
-            .au-pw-toggle { position:absolute; right:10px; background:none; border:none; cursor:pointer; color:#b89898; padding:0; display:flex; align-items:center; transition:color 0.15s; }
-            .au-pw-toggle:hover { color:#C41E3A; }
-            .au-match-hint { font-size:11px; margin-top:4px; min-height:14px; font-weight:400; transition:color 0.2s; }
-            .au-match-hint.match    { color:#38a169; }
-            .au-match-hint.no-match { color:#C41E3A; }
-            input.au-error { border-color:#e53e3e !important; box-shadow:0 0 0 3px rgba(229,62,62,0.08) !important; }
-            input.au-ok    { border-color:#38a169 !important; box-shadow:0 0 0 3px rgba(56,161,105,0.08) !important; }
-            .btn-danger {
-                background: linear-gradient(135deg, #C41E3A 0%, #8B0000 100%);
-                color:#fff; border:none; padding:0.65rem 1.4rem; border-radius:8px;
-                font-size:13.5px; font-weight:500; cursor:pointer;
-                box-shadow:0 2px 8px rgba(196,30,58,0.25);
-                transition:all 0.15s ease;
-                display:inline-flex; align-items:center; gap:7px;
-                position:relative; overflow:hidden; font-family:inherit;
-            }
-            .btn-danger::before { content:""; position:absolute; top:0; left:-100%; width:60%; height:100%;  transition:left 0.45s ease; }
-            .btn-danger:hover::before { left:150%; }
-            .btn-danger:hover { background:linear-gradient(135deg,#d42040 0%,#9B1010 100%); box-shadow:0 4px 14px   rgba(196,30,58,0.32); transform:translateY(-1px); }
-            .btn-danger:active { transform:translateY(0) scale(0.99); }
-            .btn-danger:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
-        </style>
 
         <form method="POST" class="form-grid" id="addUserForm" onsubmit="return auValidate()">
             <!-- CSRF field -->

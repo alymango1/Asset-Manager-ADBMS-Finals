@@ -1,5 +1,5 @@
 <?php
-// Pending reservations count
+// how many pending reservations
 $pendingCount = 0;
 if (isset($conn)) {
     $pendingQuery = mysqli_query($conn, "SELECT COUNT(*) AS total FROM reservations WHERE status = 'pending'");
@@ -8,7 +8,7 @@ if (isset($conn)) {
     }
 }
 
-// Overdue in-use count
+// how many items are overdue
 $overdueCount = 0;
 if (isset($conn)) {
     $overdueQuery = mysqli_query($conn, "
@@ -25,17 +25,17 @@ if (isset($conn)) {
     }
 }
 
-// Current page
+// figure out which page we're on
 $currentPage = basename($_SERVER['PHP_SELF']);
 
-// Logged-in user name
+// get the user's name
 $sidebarNameRaw = $_SESSION['full_name'] ?? ($_SESSION['username'] ?? 'User');
 $sidebarNameRaw = trim(preg_replace('/\s+/', ' ', (string)$sidebarNameRaw));
 
-// Normalize name casing for display
+// fix the name casing
 $sidebarName = $sidebarNameRaw !== '' ? ucwords(strtolower($sidebarNameRaw)) : 'User';
 
-// Build initials from first/last name (or first 2 letters if single word)
+// make initials from their name
 $nameParts = $sidebarNameRaw !== '' ? preg_split('/\s+/', $sidebarNameRaw) : [];
 $first = $nameParts[0] ?? '';
 $last  = count($nameParts) > 1 ? $nameParts[count($nameParts) - 1] : '';
@@ -48,24 +48,6 @@ $sidebarRole     = ucfirst($_SESSION['role'] ?? 'User');
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../css/admin/sidebar.css">
-<style>
-    /* Isolate sidebar from page-level font cascade */
-    .sidebar, .sidebar * {
-        font-family: 'DM Sans', sans-serif;
-        box-sizing: border-box;
-    }
-    .sb-badge-overdue {
-        background: #C40C0C !important;
-        color: #fff !important;
-        animation: overdue-glow 1.4s ease-in-out infinite;
-    }
-    @keyframes overdue-glow {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(196,12,12,0); transform: scale(1); }
-        50%       { box-shadow: 0 0 0 5px rgba(196,12,12,0.25); transform: scale(1.1); }
-    }
-</style>
-
-
 
 <aside class="sidebar">
 
@@ -200,7 +182,7 @@ $sidebarRole     = ucfirst($_SESSION['role'] ?? 'User');
       try {
         active.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       } catch (_) {
-        // Basic fallback
+        // fallback if nothing works
         active.scrollIntoView();
       }
     });

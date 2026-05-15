@@ -5,7 +5,7 @@ include('../database/db.php');
 date_default_timezone_set('Asia/Manila');
 mysqli_query($conn, "SET time_zone = '+08:00'");
 
-// CSRF token
+// set up csrf token if missing
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
@@ -23,7 +23,7 @@ if (isset($_SESSION['full_name'])) {
     $name = $nameParts[0]; // first name only
 }
 
-// Build profile initials
+// make initials from their name
 $fullNameRaw = trim(preg_replace('/\s+/', ' ', (string)($_SESSION['full_name'] ?? $name)));
 $parts = $fullNameRaw !== '' ? preg_split('/\s+/', $fullNameRaw) : [];
 $first = $parts[0] ?? '';
@@ -31,7 +31,7 @@ $last  = count($parts) > 1 ? $parts[count($parts) - 1] : '';
 $profileInitials = strtoupper(substr($first, 0, 1) . ($last !== '' ? substr($last, 0, 1) : substr($first, 1, 1)));
 $profileInitials = $profileInitials !== '' ? $profileInitials : 'U';
 
-// Notification bell data
+// get data for the bell icon
 $_notifPendingQuery = mysqli_query($conn, "SELECT COUNT(*) AS total FROM reservations WHERE status = 'pending'");
 $_notifPendingCount = mysqli_fetch_assoc($_notifPendingQuery)['total'];
 $_notifOverdueQuery = mysqli_query($conn, "
@@ -52,18 +52,18 @@ while ($row = mysqli_fetch_assoc($_notifOverdueQuery)) {
 $_notifOverdueCount = count($_notifOverdueItems);
 $_notifTotal = $_notifOverdueCount + ($_notifPendingCount > 0 ? 1 : 0);
 
-// Search filters
+// grab search/filter values
 $search   = isset($_GET['search'])   ? trim(mysqli_real_escape_string($conn, $_GET['search']))   : '';
 $category = isset($_GET['category']) ? trim(mysqli_real_escape_string($conn, $_GET['category'])) : '';
 $status   = isset($_GET['status'])   ? trim(mysqli_real_escape_string($conn, $_GET['status']))   : '';
 
-// Build conditions
+// build the sql where conditions
 $where = "WHERE 1=1";
 if ($search   !== '') $where .= " AND resource_name LIKE '%$search%'";
 if ($category !== '') $where .= " AND categories = '$category'";
 if ($status   !== '') $where .= " AND status = '$status'";
 
-// Pagination
+// handle pagination
 $limit  = 10;
 $page   = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page - 1) * $limit;
@@ -89,7 +89,7 @@ $totalAvailable = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS tot
 $totalInUse = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS total FROM equipments WHERE status = 'In-Use'"))['total'];
 $totalMaintenance = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS total FROM equipments WHERE status = 'Under Maintenance'"))['total'];
 
-// Keep filters in pagination
+// carry filters into page links
 $queryParams = [];
 if ($search   !== '') $queryParams[] = 'search='   . urlencode($search);
 if ($category !== '') $queryParams[] = 'category=' . urlencode($category);
@@ -112,123 +112,7 @@ $filterString = count($queryParams) ? '&' . implode('&', $queryParams) : '';
     <link rel="stylesheet" href="../css/admin/sidebar.css">
     <link rel="stylesheet" href="../css/admin/equipments.css">
     <link rel="stylesheet" href="../css/admin/modal.css">
-<style>
-/* ── Bell notification ── */
-.topbar-right {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-.notif-btn, .profile-btn {
-    box-sizing: border-box;
-    flex-shrink: 0;
-    padding: 0;
-    margin: 0;
-    line-height: 1;
-}
-.notif-wrap { position: relative; }
-.notif-btn {
-    position: relative;
-    width: 38px; height: 38px;
-    border-radius: 10px;
-    border: 1px solid #e5e5e5;
-    background: #fff;
-    display: flex; align-items: center; justify-content: center;
-    color: #555;
-    cursor: pointer;
-    transition: background .15s, border-color .15s;
-}
-.notif-btn:hover { background: #f5f5f5; border-color: #ccc; }
-.notif-badge {
-    position: absolute;
-    top: -5px; right: -5px;
-    background: #E8000D;
-    color: #fff;
-    font-size: 9px; font-weight: 800;
-    border-radius: 10px;
-    padding: 1px 5px;
-    border: 2px solid #fff;
-    animation: badge-pop 1.4s ease-in-out infinite;
-    min-width: 16px; text-align: center;
-}
-@keyframes badge-pop {
-    0%, 100% { transform: scale(1); }
-    50%       { transform: scale(1.18); }
-}
-.notif-dropdown {
-    display: none;
-    position: absolute;
-    top: calc(100% + 10px);
-    right: 0;
-    width: 320px;
-    background: #fff;
-    border: 1px solid #e8e8e8;
-    border-radius: 14px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.13);
-    z-index: 9999;
-    overflow: hidden;
-}
-.notif-dropdown.open { display: block; }
-.notif-dropdown-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 13px 16px 10px;
-    border-bottom: 1px solid #f0f0f0;
-}
-.notif-dropdown-title { font-size: 13px; font-weight: 700; color: #111; }
-.notif-dropdown-count {
-    font-size: 10px; font-weight: 700;
-    background: #E8000D; color: #fff;
-    border-radius: 20px; padding: 2px 8px;
-}
-.notif-list { max-height: 280px; overflow-y: auto; }
-.notif-item {
-    display: flex; align-items: flex-start; gap: 10px;
-    padding: 11px 16px;
-    border-bottom: 1px solid #f5f5f5;
-    text-decoration: none;
-    transition: background .12s;
-}
-.notif-item:hover { background: #fafafa; }
-.notif-critical { background: #fff8f8; }
-.notif-critical:hover { background: #fff0f0; }
-.notif-warning { background: #fffdf5; }
-.notif-warning:hover { background: #fffbeb; }
-.notif-item-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    flex-shrink: 0; margin-top: 4px;
-}
-.notif-dot-red {
-    background: #E8000D;
-    animation: dot-blink 1.1s ease-in-out infinite;
-}
-.notif-dot-amber { background: #d97706; }
-@keyframes dot-blink {
-    0%, 100% { opacity: 1; } 50% { opacity: .2; }
-}
-.notif-item-body { flex: 1; min-width: 0; }
-.notif-item-body strong {
-    display: block; font-size: 12px; font-weight: 700;
-    color: #111; margin-bottom: 2px;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.notif-item-body span { font-size: 11px; color: #888; }
-.notif-item-time {
-    font-size: 10px; color: #aaa; white-space: nowrap;
-    margin-top: 2px; flex-shrink: 0;
-}
-.notif-empty {
-    display: flex; flex-direction: column; align-items: center;
-    gap: 8px; padding: 28px 16px; color: #bbb; text-align: center;
-}
-.notif-empty p { font-size: 12px; color: #aaa; }
-.notif-dropdown-footer {
-    padding: 10px 16px;
-    border-top: 1px solid #f0f0f0;
-    text-align: center;
-}
-.notif-dropdown-footer a { font-size: 12px; font-weight: 600; color: #E8000D; text-decoration: none; }
-.notif-dropdown-footer a:hover { text-decoration: underline; }
-</style>
+
 </head>
 
 <body>
@@ -695,7 +579,7 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && addModal.classList.contains('active')) hideAddModal();
 });
 
-// Sync CSRF token
+// keep csrf token in sync
 addForm.querySelector('input[name="csrf_token"]').value = document.querySelector('meta[name="csrf-token"]').content;
 
 addForm.addEventListener('submit', async (e) => {
@@ -729,7 +613,6 @@ addForm.addEventListener('submit', async (e) => {
 });
 </script>
 
-
 <!-- Edit status modal -->
 <div class="modal-overlay" id="editStatusModal">
     <div class="modal-box">
@@ -759,9 +642,6 @@ addForm.addEventListener('submit', async (e) => {
         </div>
     </div>
 </div>
-
-
-
 
 <script>
 let _editId = null;
@@ -824,7 +704,6 @@ function submitEditStatus() {
 }
 </script>
 
-
 <!-- Quick return modal -->
 <div class="modal-overlay" id="quickReturnModal">
     <div class="modal-box">
@@ -860,8 +739,6 @@ function submitEditStatus() {
 
 <!-- Toast -->
 <div id="equipToast" style="position:fixed; bottom:28px; right:28px; background:#1a1a2e; color:#fff; padding:14px 22px; border-radius:10px; font-size:0.88rem; font-weight:500; box-shadow:0 4px 20px rgba(0,0,0,0.22); opacity:0; transform:translateY(12px); transition:opacity 0.25s,transform 0.25s; pointer-events:none; z-index:99999; max-width:360px; border-left:4px solid #22c55e;"></div>
-
-
 
 <script>
 let _qrId   = null;
@@ -990,7 +867,8 @@ async function submitEditDetails() {
 </script>
 
 <script>
-// Action menu
+
+// open/close action menu
 let _deleteEquipmentForm = null;
 function openDeleteEquipmentModal(formEl, message) {
     _deleteEquipmentForm = formEl;

@@ -21,7 +21,7 @@ if (isset($_SESSION['full_name'])) {
     $name = $nameParts[0];
 }
 
-// Build profile initials
+// make initials from their name
 $fullNameRaw = trim(preg_replace('/\s+/', ' ', (string)($_SESSION['full_name'] ?? $name)));
 $parts = $fullNameRaw !== '' ? preg_split('/\s+/', $fullNameRaw) : [];
 $first = $parts[0] ?? '';
@@ -29,7 +29,7 @@ $last  = count($parts) > 1 ? $parts[count($parts) - 1] : '';
 $profileInitials = strtoupper(substr($first, 0, 1) . ($last !== '' ? substr($last, 0, 1) : substr($first, 1, 1)));
 $profileInitials = $profileInitials !== '' ? $profileInitials : 'U';
 
-// Notification bell data
+// get data for the bell icon
 $_notifPendingQuery = mysqli_query($conn, "SELECT COUNT(*) AS total FROM reservations WHERE status = 'pending'");
 $_notifPendingCount = mysqli_fetch_assoc($_notifPendingQuery)['total'];
 $_notifOverdueQuery = mysqli_query($conn, "
@@ -96,7 +96,7 @@ if (isset($_POST['create_user'])) {
     }
 }
 
-// ── Edit User (inline modal POST) ──────────────────────────────────────────
+// handle edit user form submit
 $editUserMessage     = '';
 $editUserMessageType = '';
 $openEditUserModal   = false;
@@ -116,7 +116,7 @@ if (isset($_POST['edit_user'])) {
         $editPassword = trim($_POST['edit_password']   ?? '');
         $allowedRoles = ['admin', 'staff'];
 
-        // Keep form values for re-population on error
+        // remember form values on error
         $editUserData = [
             'user_id'   => $editId,
             'full_name' => $editFullName,
@@ -168,7 +168,7 @@ if (isset($_POST['edit_user'])) {
     }
 }
 
-// Flash message from redirect
+// show flash message if any
 $editSuccessMsg = '';
 if (isset($_SESSION['success_edit'])) {
     $editSuccessMsg = $_SESSION['success_edit'];
@@ -179,7 +179,7 @@ $totalUsers = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total F
 $totalAdmins = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM users WHERE roles='admin'"))['total'];
 $totalStaff = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM users WHERE roles='staff'"))['total'];
 
-// Search + filter
+// handle search and filters
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $role = isset($_GET['role']) ? trim($_GET['role']) : '';
 $searchEscaped = mysqli_real_escape_string($conn, $search);
@@ -236,123 +236,7 @@ $filterString = count($queryParams) ? '&' . implode('&', $queryParams) : '';
     <link rel="stylesheet" href="../css/admin/sidebar.css">
     <link rel="stylesheet" href="../css/admin/users.css">
     <link rel="stylesheet" href="../css/admin/modal.css">
-<style>
-/* ── Bell notification ── */
-.topbar-right {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-.notif-btn, .profile-btn {
-    box-sizing: border-box;
-    flex-shrink: 0;
-    padding: 0;
-    margin: 0;
-    line-height: 1;
-}
-.notif-wrap { position: relative; }
-.notif-btn {
-    position: relative;
-    width: 38px; height: 38px;
-    border-radius: 10px;
-    border: 1px solid #e5e5e5;
-    background: #fff;
-    display: flex; align-items: center; justify-content: center;
-    color: #555;
-    cursor: pointer;
-    transition: background .15s, border-color .15s;
-}
-.notif-btn:hover { background: #f5f5f5; border-color: #ccc; }
-.notif-badge {
-    position: absolute;
-    top: -5px; right: -5px;
-    background: #E8000D;
-    color: #fff;
-    font-size: 9px; font-weight: 800;
-    border-radius: 10px;
-    padding: 1px 5px;
-    border: 2px solid #fff;
-    animation: badge-pop 1.4s ease-in-out infinite;
-    min-width: 16px; text-align: center;
-}
-@keyframes badge-pop {
-    0%, 100% { transform: scale(1); }
-    50%       { transform: scale(1.18); }
-}
-.notif-dropdown {
-    display: none;
-    position: absolute;
-    top: calc(100% + 10px);
-    right: 0;
-    width: 320px;
-    background: #fff;
-    border: 1px solid #e8e8e8;
-    border-radius: 14px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.13);
-    z-index: 9999;
-    overflow: hidden;
-}
-.notif-dropdown.open { display: block; }
-.notif-dropdown-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 13px 16px 10px;
-    border-bottom: 1px solid #f0f0f0;
-}
-.notif-dropdown-title { font-size: 13px; font-weight: 700; color: #111; }
-.notif-dropdown-count {
-    font-size: 10px; font-weight: 700;
-    background: #E8000D; color: #fff;
-    border-radius: 20px; padding: 2px 8px;
-}
-.notif-list { max-height: 280px; overflow-y: auto; }
-.notif-item {
-    display: flex; align-items: flex-start; gap: 10px;
-    padding: 11px 16px;
-    border-bottom: 1px solid #f5f5f5;
-    text-decoration: none;
-    transition: background .12s;
-}
-.notif-item:hover { background: #fafafa; }
-.notif-critical { background: #fff8f8; }
-.notif-critical:hover { background: #fff0f0; }
-.notif-warning { background: #fffdf5; }
-.notif-warning:hover { background: #fffbeb; }
-.notif-item-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    flex-shrink: 0; margin-top: 4px;
-}
-.notif-dot-red {
-    background: #E8000D;
-    animation: dot-blink 1.1s ease-in-out infinite;
-}
-.notif-dot-amber { background: #d97706; }
-@keyframes dot-blink {
-    0%, 100% { opacity: 1; } 50% { opacity: .2; }
-}
-.notif-item-body { flex: 1; min-width: 0; }
-.notif-item-body strong {
-    display: block; font-size: 12px; font-weight: 700;
-    color: #111; margin-bottom: 2px;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.notif-item-body span { font-size: 11px; color: #888; }
-.notif-item-time {
-    font-size: 10px; color: #aaa; white-space: nowrap;
-    margin-top: 2px; flex-shrink: 0;
-}
-.notif-empty {
-    display: flex; flex-direction: column; align-items: center;
-    gap: 8px; padding: 28px 16px; color: #bbb; text-align: center;
-}
-.notif-empty p { font-size: 12px; color: #aaa; }
-.notif-dropdown-footer {
-    padding: 10px 16px;
-    border-top: 1px solid #f0f0f0;
-    text-align: center;
-}
-.notif-dropdown-footer a { font-size: 12px; font-weight: 600; color: #E8000D; text-decoration: none; }
-.notif-dropdown-footer a:hover { text-decoration: underline; }
-</style>
+
 </head>
 <body>
 
@@ -875,7 +759,8 @@ $filterString = count($queryParams) ? '&' . implode('&', $queryParams) : '';
 </div>
 
 <script>
-// ── Create-user modal helpers ──────────────────────────────────────
+
+// create user modal stuff
 function cauCheckMatch() {
     const pw   = document.getElementById('create_password').value;
     const cpw  = document.getElementById('cau_confirm').value;
@@ -958,7 +843,7 @@ function cauLiveAvatar(name) {
     document.getElementById('cauAvatarName').textContent = name.trim() || 'New User';
 }
 
-// Open/close
+// open and close modal
 document.getElementById('addUserModal').addEventListener('click', function(e) {
     if (e.target === this) closeAddUserModalFn();
 });
@@ -970,14 +855,14 @@ function closeAddUserModalFn() {
     document.body.classList.remove('modal-open');
 }
 
-// Keyboard close (merged with existing escape listeners at bottom if needed)
+// close on escape key
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape' && document.getElementById('addUserModal').classList.contains('active')) {
         closeAddUserModalFn();
     }
 });
 
-// FAB + action item open
+// open modal from fab button
 document.querySelectorAll('.js-open-add-user').forEach(function(el) {
     el.addEventListener('click', function() {
         document.getElementById('addUserModal').classList.add('active');
@@ -1066,7 +951,6 @@ document.getElementById('deleteUserModal').addEventListener('click', function(e)
     if (e.target === this) closeDeleteUserModal();
 });
 </script>
-
 
 <!-- ══════════════ EDIT USER MODAL — Premium Redesign ══════════════ -->
 <div class="modal-overlay<?php echo $openEditUserModal ? ' active' : ''; ?>" id="editUserModal">
@@ -1276,49 +1160,50 @@ document.getElementById('deleteUserModal').addEventListener('click', function(e)
 </div>
 
 <script>
-// ── Edit-user modal — data + state ────────────────────────────────
+
+// edit user modal setup
 let _euOriginal = { fullName: '', username: '', role: '' };
 
 function openEditUserModal(id, fullName, username, role) {
-    // Store originals for change tracking
+    // save original values to track changes
     _euOriginal = { fullName, username, role };
 
-    // Populate hidden + inputs
+    // fill in form fields
     document.getElementById('euHiddenId').value  = id;
     document.getElementById('euFullName').value  = fullName;
     document.getElementById('euUsername').value  = username;
     document.getElementById('euPassword').value  = '';
     document.getElementById('euConfirmPassword').value = '';
 
-    // Reset match hint + input states
+    // clear password match hint
     document.getElementById('euMatchHint').textContent = '';
     document.getElementById('euMatchHint').className   = 'euu-match-hint';
     document.getElementById('euPassword').classList.remove('euu-err','euu-ok');
     document.getElementById('euConfirmPassword').classList.remove('euu-err','euu-ok');
 
-    // Role radio
+    // set the role radio button
     const adminR = document.getElementById('euRoleAdmin');
     const staffR = document.getElementById('euRoleStaff');
     adminR.checked = (role === 'admin');
     staffR.checked = (role === 'staff');
 
-    // Panel: avatar
+    // update avatar
     euUpdatePanelAvatar(fullName);
 
-    // Panel: name + meta
+    // update name and info
     document.getElementById('euPanelName').textContent = fullName || '—';
     document.getElementById('euPanelMeta').textContent = 'User ID #' + id;
 
-    // Panel: role badge
+    // update role badge
     euUpdatePanelRole(role);
 
-    // Reset change summary
+    // clear the change summary
     euResetChangeSummary();
 
-    // Status
+    // update status
     euSetStatus('ready');
 
-    // Open
+    // open the modal
     document.getElementById('editUserModal').classList.add('active');
     document.body.classList.add('modal-open');
 }
@@ -1328,7 +1213,7 @@ function closeEditUserModal() {
     document.body.classList.remove('modal-open');
 }
 
-// Panel helpers
+// helpers for the side panel
 function euUpdatePanelAvatar(name) {
     const parts    = (name || '').trim().split(/\s+/).filter(Boolean);
     const initials = ((parts[0]?.[0] || '') + (parts[1]?.[0] || parts[0]?.[1] || '')).toUpperCase() || '?';
@@ -1341,7 +1226,7 @@ function euUpdatePanelRole(role) {
     badge.className   = 'euu-role-pill euu-role-pill--' + (role || 'none');
 }
 
-// Live name → avatar sync
+// update avatar as name changes
 function euLiveUpdate() {
     const name = document.getElementById('euFullName').value;
     euUpdatePanelAvatar(name);
@@ -1349,7 +1234,7 @@ function euLiveUpdate() {
     euTrackChanges();
 }
 
-// Change tracker
+// track what fields changed
 function euTrackChanges() {
     const curName = document.getElementById('euFullName').value.trim();
     const curUser = document.getElementById('euUsername').value.trim();
@@ -1402,7 +1287,7 @@ function euSetStatus(state) {
     }
 }
 
-// Password match
+// check if passwords match
 function euCheckMatch() {
     const pw   = document.getElementById('euPassword').value;
     const cpw  = document.getElementById('euConfirmPassword').value;
@@ -1462,7 +1347,7 @@ function euTogglePw(inputId, iconId) {
         : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
 }
 
-// Overlay click & keyboard close
+// close on overlay click or escape
 document.getElementById('editUserModal').addEventListener('click', function(e) {
     if (e.target === this) closeEditUserModal();
 });

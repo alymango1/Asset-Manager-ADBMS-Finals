@@ -3,7 +3,7 @@ session_start();
 include('../database/db.php');
 date_default_timezone_set('Asia/Manila');
 
-// CSRF token
+// set up csrf token if missing
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
@@ -20,7 +20,7 @@ if (isset($_SESSION['full_name'])) {
     $name = $nameParts[0];
 }
 
-// Build profile initials
+// make initials from their name
 $fullNameRaw = trim(preg_replace('/\s+/', ' ', (string)($_SESSION['full_name'] ?? $name)));
 $parts = $fullNameRaw !== '' ? preg_split('/\s+/', $fullNameRaw) : [];
 $first = $parts[0] ?? '';
@@ -57,7 +57,7 @@ $reservationRows = mysqli_num_rows($reservationsQuery);
 $pendingQuery = mysqli_query($conn, "SELECT COUNT(*) AS total FROM reservations WHERE status = 'pending'");
 $pendingCount = mysqli_fetch_assoc($pendingQuery)['total'];
 
-// Overdue items for bell notification
+// get overdue items for the bell icon
 $overdueItemsQuery = mysqli_query($conn, "
     SELECT e.resource_name, r.reserved_end, r.reservation_id
     FROM reservations r
@@ -611,111 +611,6 @@ document.addEventListener('keydown', (e) => {
 showAddUserModal();
 <?php endif; ?>
 </script>
-<style>
-/* ── Bell notification ── */
-.notif-wrap { position: relative; }
-.notif-btn {
-    position: relative;
-    width: 38px; height: 38px;
-    border-radius: 10px;
-    border: 1px solid #e5e5e5;
-    background: #fff;
-    display: flex; align-items: center; justify-content: center;
-    color: #555;
-    cursor: pointer;
-    transition: background .15s, border-color .15s;
-}
-.notif-btn:hover { background: #f5f5f5; border-color: #ccc; }
-.notif-badge {
-    position: absolute;
-    top: -5px; right: -5px;
-    background: #E8000D;
-    color: #fff;
-    font-size: 9px; font-weight: 800;
-    border-radius: 10px;
-    padding: 1px 5px;
-    border: 2px solid #fff;
-    animation: badge-pop 1.4s ease-in-out infinite;
-    min-width: 16px; text-align: center;
-}
-@keyframes badge-pop {
-    0%, 100% { transform: scale(1); }
-    50%       { transform: scale(1.18); }
-}
-.notif-dropdown {
-    display: none;
-    position: absolute;
-    top: calc(100% + 10px);
-    right: 0;
-    width: 320px;
-    background: #fff;
-    border: 1px solid #e8e8e8;
-    border-radius: 14px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.13);
-    z-index: 9999;
-    overflow: hidden;
-}
-.notif-dropdown.open { display: block; }
-.notif-dropdown-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 13px 16px 10px;
-    border-bottom: 1px solid #f0f0f0;
-}
-.notif-dropdown-title { font-size: 13px; font-weight: 700; color: #111; }
-.notif-dropdown-count {
-    font-size: 10px; font-weight: 700;
-    background: #E8000D; color: #fff;
-    border-radius: 20px; padding: 2px 8px;
-}
-.notif-list { max-height: 280px; overflow-y: auto; }
-.notif-item {
-    display: flex; align-items: flex-start; gap: 10px;
-    padding: 11px 16px;
-    border-bottom: 1px solid #f5f5f5;
-    text-decoration: none;
-    transition: background .12s;
-}
-.notif-item:hover { background: #fafafa; }
-.notif-critical { background: #fff8f8; }
-.notif-critical:hover { background: #fff0f0; }
-.notif-warning { background: #fffdf5; }
-.notif-warning:hover { background: #fffbeb; }
-.notif-item-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    flex-shrink: 0; margin-top: 4px;
-}
-.notif-dot-red {
-    background: #E8000D;
-    animation: dot-blink 1.1s ease-in-out infinite;
-}
-.notif-dot-amber { background: #d97706; }
-@keyframes dot-blink {
-    0%, 100% { opacity: 1; } 50% { opacity: .2; }
-}
-.notif-item-body { flex: 1; min-width: 0; }
-.notif-item-body strong {
-    display: block; font-size: 12px; font-weight: 700;
-    color: #111; margin-bottom: 2px;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.notif-item-body span { font-size: 11px; color: #888; }
-.notif-item-time {
-    font-size: 10px; color: #aaa; white-space: nowrap;
-    margin-top: 2px; flex-shrink: 0;
-}
-.notif-empty {
-    display: flex; flex-direction: column; align-items: center;
-    gap: 8px; padding: 28px 16px; color: #bbb; text-align: center;
-}
-.notif-empty p { font-size: 12px; color: #aaa; }
-.notif-dropdown-footer {
-    padding: 10px 16px;
-    border-top: 1px solid #f0f0f0;
-    text-align: center;
-}
-.notif-dropdown-footer a { font-size: 12px; font-weight: 600; color: #E8000D; text-decoration: none; }
-.notif-dropdown-footer a:hover { text-decoration: underline; }
-</style>
 
 <script>
 const notifBtn = document.getElementById('notifBtn');

@@ -2,7 +2,7 @@
 session_start();
 include('../database/db.php');
 
-// CSRF token
+// set up csrf token if missing
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
@@ -22,7 +22,7 @@ $message = "";
 
 if (isset($_POST['add'])) {
 
-    // CSRF check
+    // make sure the request is legit
     if (
         empty($_SESSION['csrf_token']) ||
         !isset($_POST['csrf_token']) ||
@@ -35,7 +35,7 @@ if (isset($_POST['add'])) {
     $category      = $_POST['category'] ?? '';
     $status        = "Available"; // Default status
 
-    // Validate category
+    // reject bad category values
     $allowed_categories = ['IT Equipment', 'Classroom', 'Events Equipment'];
     if (!in_array($category, $allowed_categories, true)) {
         $message = "Invalid category selected.";
@@ -47,7 +47,25 @@ if (isset($_POST['add'])) {
         mysqli_stmt_bind_param($stmt, 'ss', $resource_name, $category);
 
         if (mysqli_stmt_execute($stmt)) {
+            $new_equipment_id = (int) mysqli_insert_id($conn);
             $message = "Equipment added successfully!";
+
+            // log it
+            $admin_id  = (int) $_SESSION['user_id'];
+            $log_remarks = "Added equipment: \"$resource_name\" (Category: $category)";
+            $log_stmt = mysqli_prepare($conn, "
+                INSERT INTO equipment_transactions
+                    (action_type, equipment_id, performed_by,
+                     field_changed, new_value, action_date, remarks)
+                VALUES ('equipment_added', ?, ?, 'initial', ?, NOW(), ?)
+            ");
+            mysqli_stmt_bind_param($log_stmt, 'iiss',
+                $new_equipment_id, $admin_id,
+                $category, $log_remarks);
+            mysqli_stmt_execute($log_stmt);
+            mysqli_stmt_close($log_stmt);
+
+            // end log
         } else {
             $message = "Error: " . mysqli_stmt_error($stmt);
         }
@@ -58,14 +76,14 @@ if (isset($_POST['add'])) {
     }
     } // End category check
 
-    // Refresh token
+    // give a new csrf token
     if (strpos($message, 'successfully') !== false) {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     }
 
     } // End CSRF branch
 
-    // Return JSON for AJAX
+    // send json back if it's an ajax call
     if (isset($_POST['ajax']) && $_POST['ajax'] === '1') {
         header('Content-Type: application/json; charset=utf-8');
         $success = (stripos($message, 'success') !== false);
@@ -119,7 +137,7 @@ btn.addEventListener("click", function (e) {
     menu.classList.toggle("active");
 });
 
-// Close dropdown on outside click
+// close dropdown when clicking outside
 document.addEventListener("click", function () {
     menu.classList.remove("active");
 });

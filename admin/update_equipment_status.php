@@ -13,28 +13,29 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 }
 
 
-// CSRF token
+// set up csrf token if missing
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 $isAjax = isset($_POST['update']) && !isset($_GET['id']);
 
-// AJAX update
+// handle ajax status update
 if ($isAjax) {
     header('Content-Type: application/json');
 
 
-    // CSRF check
+    // make sure the request is legit
     $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? $_POST['csrf_token'] ?? '';
     if (empty($token) || !hash_equals($_SESSION['csrf_token'], $token)) {
         echo json_encode(['success' => false, 'message' => 'Invalid CSRF token.']);
         exit();
     }
 
-    $id     = isset($_POST['id'])     ? (int) $_POST['id']                                : 0;
-    $status = isset($_POST['status']) ? mysqli_real_escape_string($conn, $_POST['status']) : '';
-    $allowed = ['Available', 'In-Use', 'Under Maintenance'];
+    $id       = isset($_POST['id'])     ? (int) $_POST['id']                                : 0;
+    $status   = isset($_POST['status']) ? mysqli_real_escape_string($conn, $_POST['status']) : '';
+    $admin_id = (int) $_SESSION['user_id'];
+    $allowed  = ['Available', 'In-Use', 'Under Maintenance'];
 
     if (!$id) {
         echo json_encode(['success' => false, 'message' => 'Invalid equipment ID.']);
@@ -45,7 +46,7 @@ if ($isAjax) {
         exit();
     }
 
-    // Block update if reserved
+    // can't change status if it's reserved
     $activeRes = mysqli_fetch_assoc(mysqli_query($conn,
         "SELECT reservation_id FROM reservations
          WHERE equipment_id = $id AND status IN ('pending','approved')
@@ -59,6 +60,20 @@ if ($isAjax) {
     $update = mysqli_query($conn, "UPDATE equipments SET status = '$status' WHERE equipment_id = $id");
 
     if ($update) {
+        // log it
+        $prev_status = $data['status'] ?? 'Unknown';
+        $ajax_remarks = "Manual status override: \"$prev_status\" → \"$status\"";
+        mysqli_query($conn, "
+            INSERT INTO equipment_transactions
+                (action_type, equipment_id, performed_by,
+                 status_from, status_to, action_date, remarks)
+            VALUES ('manual_status_change', $id, $admin_id,
+                    '" . mysqli_real_escape_string($conn, $prev_status) . "',
+                    '$status', NOW(),
+                    '" . mysqli_real_escape_string($conn, $ajax_remarks) . "')
+        ");
+
+        // end log
         echo json_encode(['success' => true]);
     } else {
         echo json_encode(['success' => false, 'message' => mysqli_error($conn)]);
@@ -66,7 +81,7 @@ if ($isAjax) {
     exit();
 }
 
-// Legacy page flow
+// fallback for non-ajax form submit
 if (!isset($_GET['id'])) {
     header("Location: equipments.php");
     exit();
@@ -85,7 +100,7 @@ if (!$data) {
 $message = "";
 
 if (isset($_POST['update'])) {
-    // CSRF check
+    // make sure the request is legit
     if (
         empty($_SESSION['csrf_token']) ||
         !isset($_POST['csrf_token']) ||
@@ -97,7 +112,7 @@ if (isset($_POST['update'])) {
     $allowed = ['Available', 'In-Use', 'Under Maintenance'];
 
     if (in_array($status, $allowed)) {
-        // Block update if reserved
+        // can't change status if it's reserved
         $activeRes = mysqli_fetch_assoc(mysqli_query($conn,
             "SELECT reservation_id FROM reservations
              WHERE equipment_id = $id AND status IN ('pending','approved')
@@ -108,6 +123,21 @@ if (isset($_POST['update'])) {
         } else {
         $update = mysqli_query($conn, "UPDATE equipments SET status = '$status' WHERE equipment_id = $id");
         if ($update) {
+            // ── AUDIT LOG ──────────────────────────────────────────────
+            $admin_id    = (int) $_SESSION['user_id'];
+            $prev_status = $data['status'];
+            $leg_remarks = "Manual status override: \"$prev_status\" → \"$status\"";
+            mysqli_query($conn, "
+                INSERT INTO equipment_transactions
+                    (action_type, equipment_id, performed_by,
+                     status_from, status_to, action_date, remarks)
+                VALUES ('manual_status_change', $id, $admin_id,
+                        '" . mysqli_real_escape_string($conn, $prev_status) . "',
+                        '$status', NOW(),
+                        '" . mysqli_real_escape_string($conn, $leg_remarks) . "')
+            ");
+
+            // ── END AUDIT LOG ──────────────────────────────────────────
             $_SESSION['success'] = "Status updated successfully!";
             header("Location: equipments.php");
             exit();
@@ -162,7 +192,7 @@ btn.addEventListener("click", function (e) {
     menu.classList.toggle("active");
 });
 
-// Close dropdown on outside click
+// close dropdown when clicking outside
 document.addEventListener("click", function () {
     menu.classList.remove("active");
 });

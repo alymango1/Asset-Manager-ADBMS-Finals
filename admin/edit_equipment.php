@@ -7,7 +7,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     exit();
 }
 
-// CSRF token
+// set up csrf token if missing
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
@@ -18,7 +18,7 @@ if (isset($_SESSION['full_name'])) {
     $name = $nameParts[0];
 }
 
-// Require equipment ID
+// need a valid equipment id
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     header("Location: equipments.php");
     exit();
@@ -26,7 +26,7 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
 
 $id = (int) $_GET['id'];
 
-// Load equipment
+// get the equipment data
 $fetchQuery = mysqli_query($conn, "SELECT * FROM equipments WHERE equipment_id = $id");
 if (!$fetchQuery || mysqli_num_rows($fetchQuery) === 0) {
     header("Location: equipments.php");
@@ -39,7 +39,7 @@ $messageType = "";
 
 if (isset($_POST['save'])) {
 
-    // CSRF check
+    // make sure the request is legit
     if (
         empty($_SESSION['csrf_token']) ||
         !isset($_POST['csrf_token']) ||
@@ -69,12 +69,42 @@ if (isset($_POST['save'])) {
         );
 
         if ($update) {
-            // Reload equipment
+            // log the fields that changed
+            $admin_id = (int) $_SESSION['user_id'];
+            $changes  = [];
+            if ($equipment['resource_name'] !== $resource_name) {
+                $changes[] = ['resource_name',
+                              $equipment['resource_name'], $resource_name];
+            }
+            if ($equipment['categories'] !== $category) {
+                $changes[] = ['categories',
+                              $equipment['categories'], $category];
+            }
+            if (!empty($changes)) {
+                $log_stmt = mysqli_prepare($conn, "
+                    INSERT INTO equipment_transactions
+                        (action_type, equipment_id, performed_by,
+                         field_changed, old_value, new_value, action_date, remarks)
+                    VALUES ('equipment_edited', ?, ?, ?, ?, ?, NOW(), ?)
+                ");
+                foreach ($changes as [$field, $old, $new]) {
+                    $remarks_txt = "Edited equipment #$id: $field changed from \"$old\" to \"$new\"";
+                    mysqli_stmt_bind_param($log_stmt, 'iissss',
+                        $id, $admin_id, $field, $old, $new, $remarks_txt);
+                    mysqli_stmt_execute($log_stmt);
+                }
+                mysqli_stmt_close($log_stmt);
+            }
+
+            // end log
+
+            // refresh equipment data after save
             $equipment['resource_name'] = $resource_name;
             $equipment['categories']    = $category;
             $message     = "Equipment updated successfully!";
             $messageType = "success";
-            // Refresh token
+
+            // give a new csrf token
             $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
         } else {
             $message     = "Error: " . mysqli_error($conn);

@@ -17,7 +17,7 @@ if (isset($_SESSION['full_name'])) {
     $name = $nameParts[0];
 }
 
-// Display name + initials
+// make display name and initials
 $fullNameRaw = trim(preg_replace('/\s+/', ' ', (string)($_SESSION['full_name'] ?? $name)));
 $firstNameRaw = $fullNameRaw !== '' ? preg_split('/\s+/', $fullNameRaw)[0] : 'User';
 $name = ucfirst(strtolower($firstNameRaw));
@@ -208,7 +208,7 @@ function closeConfirmActionModal() {
     _confirmActionCallback = null;
 }
 
-// Close modal on backdrop
+// close modal on outside click
 document.getElementById('confirmActionModal').addEventListener('click', function(e) {
     if (e.target === this) closeConfirmActionModal();
 });
